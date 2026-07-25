@@ -1,0 +1,5 @@
+pytest==8.3.4
+pytest-asyncio
+pytest-cov
+pydantic>=2.11.0
+pydantic-settings>=2.7.0
