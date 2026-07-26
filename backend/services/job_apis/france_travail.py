@@ -19,15 +19,14 @@ class FranceTravailClient(BaseJobAPIClient):
         self.access_token: str | None = None
 
     async def authenticate(self) -> None:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(_AUTH_URL, data={
-                "grant_type": "client_credentials",
-                "client_id": self.client_id,
-                "client_secret": self.client_secret,
-                "scope": "api_offresdemploiv2 o2dsoffre"
-            }) as response:
-                data = await response.json()
-                self.access_token = data.get("access_token")
+        async with aiohttp.ClientSession() as session, session.post(_AUTH_URL, data={
+            "grant_type": "client_credentials",
+            "client_id": self.client_id,
+            "client_secret": self.client_secret,
+            "scope": "api_offresdemploiv2 o2dsoffre"
+        }) as response:
+            data = await response.json()
+            self.access_token = data.get("access_token")
 
     def _map_response(self, item: dict[str, Any]) -> RawJobPosting:
         title = item.get("intitule", "")

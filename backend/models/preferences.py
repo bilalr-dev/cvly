@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Literal, Optional
+from typing import List, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from .job import SupportedLanguage
@@ -8,7 +8,6 @@ from .match import SeniorityLevel
 
 
 class SearchPreferences(BaseModel):
-    """User preferences configured for automated job searches."""
     model_config = ConfigDict(frozen=True)
 
     country: Literal["FR", "GB", "US", "other"] = "FR"

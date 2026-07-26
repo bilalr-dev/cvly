@@ -43,8 +43,10 @@ async def generate_cover_letter(
     jd_desc = []
     kr = getattr(jd, "key_responsibilities", [])
     rs = getattr(jd, "required_skills", [])
-    if isinstance(kr, list): jd_desc.extend(kr)
-    if isinstance(rs, list): jd_desc.extend(rs)
+    if isinstance(kr, list):
+        jd_desc.extend(kr)
+    if isinstance(rs, list):
+        jd_desc.extend(rs)
 
     strengths = []
     if getattr(match_result, "atf_analysis", None):

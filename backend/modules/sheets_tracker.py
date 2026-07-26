@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import date
+from datetime import datetime, timezone, date  # noqa: F401
 import gspread
 from google.oauth2.service_account import Credentials
 
@@ -71,7 +71,7 @@ class SheetsTracker:
         if self.worksheet is None:
             raise RuntimeError("Not connected. Call connect() first.")
 
-        date_str = date.today().strftime("%Y-%m-%d")
+        date_str = datetime.now(tz=timezone.utc).date().strftime("%Y-%m-%d")
 
         algo_score = round(getattr(match_result, "overall_score", 0))
 
