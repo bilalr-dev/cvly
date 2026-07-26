@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-6">
+    <div class="flex items-center justify-between">
+        <h2 class="text-2xl font-bold">Dashboard</h2>
+        {% if last_run %}
+        <span class="text-sm text-slate-500">Last run: {{ last_run }}</span>
+        {% endif %}
+    </div>
+
+    <div class="grid grid-cols-3 gap-6">
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
+            <h3 class="text-sm text-slate-500 mb-1">Jobs Found</h3>
+            <p id="jobs-found-count" class="text-3xl font-bold">{{ jobs_count }}</p>
+        </div>
+
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
+            <h3 class="text-sm text-slate-500 mb-1">Avg Match Score</h3>
+            <p class="text-3xl font-bold">{{ avg_score }}</p>
+        </div>
+
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
+            <h3 class="text-sm text-slate-500 mb-1">Above Threshold (>80)</h3>
+            <p class="text-3xl font-bold">{{ above_threshold }}</p>
+        </div>
+    </div>
+
+    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <h3 class="text-lg font-bold mb-1">Pipeline actions</h3>
+                <p class="text-sm text-slate-500">Run the automated agent to scan and match profiles.</p>
+            </div>
+
+            <div class="flex gap-3">
+                <button
+                    hx-post="/pipeline/run"
+                    hx-target="#pipeline-status"
+                    hx-swap="innerHTML"
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2">
+                    Run Pipeline
+                </button>
+            </div>
+        </div>
+
+        <div id="pipeline-status" class="pt-4 border-t border-slate-100">
+            <p class="text-sm text-slate-500">Pipeline is idle.</p>
+        </div>
+    </div>
+
+    <div class="flex justify-start">
+        <a href="#" class="text-sm text-indigo-600 hover:underline flex items-center gap-1">
+            Open Google Sheet Dashboard
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+        </a>
+    </div>
+</div>
+{% endblock %}

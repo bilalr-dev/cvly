@@ -1,0 +1,10 @@
+{% set score = job.score | default(0) %}
+{% if score >= 80 %}
+<span class="bg-score-high text-white text-xs font-bold px-2 py-1 rounded shadow-sm">{{ score }}%</span>
+{% elif score >= 60 %}
+<span class="bg-score-medium text-white text-xs font-bold px-2 py-1 rounded shadow-sm">{{ score }}%</span>
+{% elif score >= 40 %}
+<span class="bg-score-low text-white text-xs font-bold px-2 py-1 rounded shadow-sm">{{ score }}%</span>
+{% else %}
+<span class="bg-score-poor text-white text-xs font-bold px-2 py-1 rounded shadow-sm">{{ score }}%</span>
+{% endif %}

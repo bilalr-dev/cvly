@@ -1,0 +1,39 @@
+<tr id="details-{{ job.id }}" class="bg-indigo-50/30 border-b border-indigo-100">
+    <td colspan="6" class="p-6">
+        <div class="grid grid-cols-3 gap-6">
+            <div class="col-span-3 pb-4 border-b border-indigo-100/50 flex justify-between items-start">
+                <div>
+                    <h4 class="font-bold text-lg mb-1 text-slate-800">ATF Analysis</h4>
+                    <p class="text-sm text-slate-600">{{ job.atf_analysis }}</p>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <h5 class="font-bold text-sm mb-3 text-slate-800">Strengths</h5>
+                <ul class="text-sm text-slate-600 list-disc pl-4 space-y-1">
+                    <li>Strong backend experience</li>
+                    <li>Perfect match for remote</li>
+                </ul>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <h5 class="font-bold text-sm mb-3 text-slate-800">Weaknesses</h5>
+                <ul class="text-sm text-slate-600 list-disc pl-4 space-y-1">
+                    <li>Missing direct AWS CI/CD exp</li>
+                </ul>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <h5 class="font-bold text-sm mb-3 text-slate-800">Keywords Gap Analysis</h5>
+                <div class="flex flex-wrap gap-2">
+                    <span class="text-xs bg-green-100 text-green-800 px-2.5 py-1 rounded-full border border-green-200 font-medium">Python</span>
+                    <span class="text-xs bg-green-100 text-green-800 px-2.5 py-1 rounded-full border border-green-200 font-medium">FastAPI</span>
+                    <span class="text-xs bg-red-100 text-red-800 px-2.5 py-1 rounded-full border border-red-200 font-medium">Terraform</span>
+                </div>
+            </div>
+        </div>
+        <div class="mt-4 flex justify-end">
+            <button hx-get="/results/job/close" hx-target="#details-{{ job.id }}" class="text-sm text-slate-500 hover:text-slate-800 font-medium">Close details</button>
+        </div>
+    </td>
+</tr>
