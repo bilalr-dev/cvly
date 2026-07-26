@@ -150,3 +150,97 @@ Return only valid JSON with this exact structure:
   "recommendation": "...",
   "profile_type": "experienced | student_stage | student_alternance"
 }"""
+
+BULLET_REWRITE_PROMPT: str = """You are a professional CV writer specializing in ATS optimization for the {country} job market.
+
+TASK: Rewrite the candidate's experience bullet points to better match the target job description.
+
+ONE-PAGE RULE: The final CV must fit on one page. This means:
+- Maximum 3-4 bullets per role. Select the most impactful ones.
+- Maximum 2-3 roles shown (most recent and most relevant).
+- Every bullet must earn its space — remove generic filler.
+- Exception: if the candidate is senior/lead with 10+ years, or the role is research/academic, up to 2 pages is acceptable.
+
+RULES:
+- Use the STAR method (Situation, Task, Action, Result) for each bullet.
+- Start every bullet with a strong action verb. Never start with "I" or "My".
+  - For French output, use: piloté, développé, optimisé, mis en place, conçu, orchestré, déployé, automatisé, restructuré, négocié.
+  - For English output, use: led, developed, optimized, implemented, designed, spearheaded, engineered, streamlined, orchestrated, negotiated.
+- Be specific rather than general, active rather than passive.
+- Quantify every achievement: include numbers, percentages, dollar amounts, team sizes, time saved.
+- Use short statements, not complete sentences. No personal pronouns.
+- Incorporate the following missing keywords ONLY where they truthfully apply to existing experience: {missing_keywords}
+- NEVER invent experience, tools, metrics, or achievements not present in the original CV.
+- If a missing keyword cannot be truthfully incorporated, skip it and list it in the "unfillable_gaps" field.
+- Preserve all quantifiable metrics from the original bullets.
+- Write in {language}.
+
+CANDIDATE PROFILE TYPE: {profile_type}
+
+PROFILE-SPECIFIC RULES:
+- If profile is "student_stage" or "student_alternance":
+  - Academic projects and coursework are valid experience. Rewrite them with the same STAR rigor as work bullets.
+  - Highlight transferable skills (teamwork, methodology, tools used in projects).
+  - For alternance candidates: mention the alternance rhythm ({alternance_rhythm}) in the availability section if provided.
+  - Do NOT fabricate professional experience to compensate for a thin work history. Lean on projects, coursework, and associations instead.
+  - Use verbs appropriate for student context: "réalisé dans le cadre de", "contribué à", "participé à", "développé lors de" (FR) / "completed as part of", "contributed to", "developed during" (EN).
+- If profile is "experienced": standard professional rewriting.
+
+ORIGINAL EXPERIENCE BULLETS:
+{original_bullets}
+
+ACADEMIC PROJECTS (if student profile):
+{academic_projects}
+
+ASSOCIATIONS & EXTRACURRICULARS (if student profile):
+{associations}
+
+TARGET JOB KEY RESPONSIBILITIES:
+{key_responsibilities}
+
+ATF ANALYSIS WEAKNESSES TO ADDRESS:
+{weaknesses}
+
+Return JSON:
+{
+  "rewritten_experience_bullets": [{"original": "...", "rewritten": "...", "keywords_added": [...]}],
+  "rewritten_project_bullets": [{"project_name": "...", "rewritten": "...", "keywords_added": [...]}],
+  "unfillable_gaps": ["keyword1", "keyword2"]
+}"""
+
+COVER_LETTER_PROMPT: str = """You are an expert cover letter writer for the {country} job market.
+
+TASK: Write a cover letter for the following job application.
+
+CANDIDATE PROFILE TYPE: {profile_type}
+
+RULES:
+- 3 paragraphs maximum.
+- Write in {language}.
+- NEVER mention skills or experience not present in the CV.
+
+RULES FOR EXPERIENCED PROFILES:
+- Paragraph 1: Hook — why this company and role specifically interest the candidate. Reference something specific about the company.
+- Paragraph 2: Value — map 2-3 specific achievements from the CV to specific requirements from the JD. Use concrete numbers.
+- Paragraph 3: Close — express enthusiasm and availability.
+- For French: use vouvoiement. Open with "Madame, Monsieur," and close with "Je vous prie d'agréer, Madame, Monsieur, l'expression de mes salutations distinguées."
+- For English: professional but not stiff. Open with "Dear Hiring Manager," and close with "Sincerely,".
+
+RULES FOR STUDENT PROFILES (stage/alternance):
+- Paragraph 1: Context — state the degree being pursued, the institution, and why this specific company/role aligns with the academic path. For alternance: explicitly state the rhythm (e.g., "dans le cadre de mon alternance en rythme 3 semaines / 1 semaine").
+- Paragraph 2: Value — highlight 2-3 relevant academic projects, coursework, or association experiences that demonstrate applicable skills. Link them to the JD requirements. Numbers from projects count (e.g., "application utilisée par 200 étudiants").
+- Paragraph 3: Motivation and availability — express genuine curiosity about the company's domain, mention availability dates and duration.
+- Tone: enthusiastic but not naive. Show awareness of the professional context.
+- For French: use vouvoiement. Open with "Madame, Monsieur," and close with "Je vous prie d'agréer, Madame, Monsieur, l'expression de mes salutations distinguées."
+- For English: open with "Dear Hiring Manager," and close with "Sincerely,".
+- For alternance: include the alternance rhythm and start date in paragraph 1 if available.
+
+CANDIDATE SUMMARY: {summary}
+CANDIDATE KEY ACHIEVEMENTS: {achievements}
+CANDIDATE ACADEMIC PROJECTS: {academic_projects}
+CANDIDATE EDUCATION (current): {current_education}
+ALTERNANCE RHYTHM (if applicable): {alternance_rhythm}
+JOB DESCRIPTION: {job_description}
+MATCH STRENGTHS: {strengths}
+
+Return the cover letter as plain text (not JSON)."""
