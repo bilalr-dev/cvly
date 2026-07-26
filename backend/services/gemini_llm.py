@@ -5,7 +5,6 @@ import json
 import google.generativeai as genai
 from pydantic import BaseModel, ValidationError
 
-
 GEMINI_MODEL = "gemini-2.0-flash"
 
 
@@ -27,7 +26,6 @@ class GeminiLLMService:
             "temperature": temperature,
         }
 
-        # TODO: add safety settings test
         safety_settings = [
             {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
             {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},

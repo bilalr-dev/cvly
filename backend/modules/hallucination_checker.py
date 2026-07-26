@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any, List
+from typing import Any
 
 from backend.models import HallucinationWarning
 
@@ -13,7 +13,7 @@ _COMMON_WORDS: frozenset[str] = frozenset([
 
 _TECH_PATTERN = re.compile(r'[\.0-9]|[a-z][A-Z]')
 
-def check_hallucinations(tailored_output: Any, resume: Any) -> List[HallucinationWarning]:
+def check_hallucinations(tailored_output: Any, resume: Any) -> list[HallucinationWarning]:
     known_terms = set()
     skills = getattr(resume, "skills", None)
     if skills:

@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from typing import List, Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
-
 
 ProfileType = Literal["experienced", "student_alternance", "student_stage"]
 
@@ -11,10 +10,10 @@ ProfileType = Literal["experienced", "student_alternance", "student_stage"]
 class ResumeSkills(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    certifications: List[str] = Field(default_factory=list)
-    soft: List[str] = Field(default_factory=list)
-    technical: List[str] = Field(default_factory=list)
-    tools: List[str] = Field(default_factory=list)
+    certifications: list[str] = Field(default_factory=list)
+    soft: list[str] = Field(default_factory=list)
+    technical: list[str] = Field(default_factory=list)
+    tools: list[str] = Field(default_factory=list)
 
 
 class ExperienceEntry(BaseModel):
@@ -24,10 +23,10 @@ class ExperienceEntry(BaseModel):
     title: str
     type: Literal["alternance", "freelance", "fulltime", "internship", "other", "volunteer"]
 
-    end_date: Optional[str] = None
+    end_date: str | None = None
 
-    bullets: List[str] = Field(default_factory=list)
-    metrics: List[str] = Field(default_factory=list)
+    bullets: list[str] = Field(default_factory=list)
+    metrics: list[str] = Field(default_factory=list)
     start_date: str = ""
 
 
@@ -38,8 +37,8 @@ class AcademicProject(BaseModel):
     description: str
     name: str
 
-    metrics: List[Optional[str]] = Field(default_factory=list)
-    technologies: List[str] = Field(default_factory=list)
+    metrics: list[str | None] = Field(default_factory=list)
+    technologies: list[str] = Field(default_factory=list)
 
 
 class EducationEntry(BaseModel):
@@ -47,10 +46,10 @@ class EducationEntry(BaseModel):
 
     degree: str
 
-    alternance_rhythm: Optional[str] = None
-    end_date: Optional[str] = None
-    start_date: Optional[str] = None
-    year: Optional[int] = None
+    alternance_rhythm: str | None = None
+    end_date: str | None = None
+    start_date: str | None = None
+    year: int | None = None
 
     field: str = ""
     in_progress: bool = False
@@ -64,7 +63,7 @@ class Association(BaseModel):
     name: str
     role: str
 
-    description: Optional[str] = None
+    description: str | None = None
 
 
 class ResumeProfile(BaseModel):
@@ -73,10 +72,10 @@ class ResumeProfile(BaseModel):
     detected_profile: ProfileType
     skills: ResumeSkills
 
-    alternance_rhythm: Optional[str] = None
-    location: Optional[str] = None
-    phone: Optional[str] = None
-    summary: Optional[str] = None
+    alternance_rhythm: str | None = None
+    location: str | None = None
+    phone: str | None = None
+    summary: str | None = None
 
-    education: List[EducationEntry] = Field(default_factory=list)
-    experience: List[ExperienceEntry] = Field(default_factory=list)
+    education: list[EducationEntry] = Field(default_factory=list)
+    experience: list[ExperienceEntry] = Field(default_factory=list)

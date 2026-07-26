@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import re
 import hashlib
-from typing import List
+import re
 
 from backend.models.job import RawJobPosting
 
@@ -28,7 +27,7 @@ def generate_posting_id(title: str, company: str, location: str) -> str:
     raw = f"{title}{company}{location}".encode()
     return hashlib.sha256(raw).hexdigest()
 
-def deduplicate_postings(postings: List[RawJobPosting]) -> List[RawJobPosting]:
+def deduplicate_postings(postings: list[RawJobPosting]) -> list[RawJobPosting]:
     if not postings:
         return []
 

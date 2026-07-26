@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from backend.models.match import ATFAnalysis
-from backend.services.gemini_llm import GeminiLLMService
 from backend.prompts import (
-    ATF_SYSTEM_PROMPT_FR,
-    ATF_USER_PROMPT_FR,
     ATF_SYSTEM_PROMPT_EN,
-    ATF_USER_PROMPT_EN
+    ATF_SYSTEM_PROMPT_FR,
+    ATF_USER_PROMPT_EN,
+    ATF_USER_PROMPT_FR,
 )
+from backend.services.gemini_llm import GeminiLLMService
+
 
 async def analyse_atf(
     resume_text: str,
