@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import docx
+from docx.opc.exceptions import PackageNotFoundError
 import pdfplumber
 
 from backend.models.resume import ResumeProfile
@@ -23,8 +24,8 @@ def extract_text_from_pdf(file_path: str) -> str:
 def extract_text_from_docx(file_path: str) -> str:
     try:
         doc = docx.Document(file_path)
-    except Exception:
-        raise FileNotFoundError(f"File not found: {file_path}")
+    except (ValueError, OSError, PackageNotFoundError) as e:
+        raise FileNotFoundError(f"File not found: {file_path}") from e
 
     text_chunks = [p.text for p in doc.paragraphs if p.text]
     return "\n".join(text_chunks)

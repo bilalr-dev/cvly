@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import date
+from datetime import datetime, timezone, date  # noqa: F401
 from typing import Any
 
 _ACADEMIC_KEYWORDS: frozenset[str] = frozenset([
@@ -45,7 +45,7 @@ def is_one_page_exception(resume: Any, jd: Any) -> bool:
             m2 = re.search(r'\d{4}', e)
 
             start = int(m1.group(0)) if m1 else 0
-            end = int(m2.group(0)) if m2 else date.today().year
+            end = int(m2.group(0)) if m2 else datetime.now(tz=timezone.utc).date().year
 
             if start > 0 and end >= start:
                 total_y += (end - start)
@@ -75,9 +75,12 @@ def generate_resume_markdown(resume: Any, tailored: Any, jd: Any, language: str 
     md.append(f"# {getattr(resume, 'name', 'N/A')}\n")
 
     contact = []
-    if getattr(resume, "email", None): contact.append(str(resume.email))
-    if getattr(resume, "phone", None): contact.append(str(resume.phone))
-    if getattr(resume, "location", None): contact.append(str(resume.location))
+    if getattr(resume, "email", None):
+        contact.append(str(resume.email))
+    if getattr(resume, "phone", None):
+        contact.append(str(resume.phone))
+    if getattr(resume, "location", None):
+        contact.append(str(resume.location))
 
     if contact:
         md.append(" | ".join(contact) + "\n")
@@ -85,8 +88,10 @@ def generate_resume_markdown(resume: Any, tailored: Any, jd: Any, language: str 
     skills = []
     sk_obj = getattr(resume, "skills", None)
     if sk_obj:
-        for t in getattr(sk_obj, "technical", []): skills.append(str(t))
-        for t in getattr(sk_obj, "tools", []): skills.append(str(t))
+        for t in getattr(sk_obj, "technical", []):
+            skills.append(str(t))
+        for t in getattr(sk_obj, "tools", []):
+            skills.append(str(t))
 
     prof_type = str(getattr(resume, "detected_profile", "experienced"))
     exp_first = "experienced" in prof_type
@@ -126,9 +131,8 @@ def generate_resume_markdown(resume: Any, tailored: Any, jd: Any, language: str 
             exp_text.append(f"### {ttl} @ {cmp} ({sd} - {ed})")
 
             orig_bullets = [str(b) for b in getattr(exp, "bullets", [])]
-            b_added = 0
 
-            for o_b in orig_bullets:
+            for b_added, o_b in enumerate(orig_bullets):
                 if b_added >= bull_limit:
                     break
                 r_text = o_b
@@ -139,7 +143,6 @@ def generate_resume_markdown(resume: Any, tailored: Any, jd: Any, language: str 
                             break
 
                 exp_text.append(f"- {r_text}")
-                b_added += 1
             exp_text.append("\n")
             roles_added += 1
 
@@ -162,5 +165,5 @@ def generate_cover_letter_markdown(cover_letter_text: str, resume: Any, jd_title
 def generate_output_filename(company: str, title: str, doc_type: str, language: str) -> str:
     c = _FILENAME_SANITIZE_PATTERN.sub('', str(company).lower().replace(" ", "_"))
     t = _FILENAME_SANITIZE_PATTERN.sub('', str(title).lower().replace(" ", "_"))
-    prefix = date.today().strftime("%Y%m%d")
+    prefix = datetime.now(tz=timezone.utc).date().strftime("%Y%m%d")
     return f"{prefix}_{c}_{t}_{doc_type}_{language}.md"

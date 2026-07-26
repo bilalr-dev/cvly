@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from typing import Type
 
 import google.generativeai as genai
 from pydantic import BaseModel, ValidationError
@@ -45,8 +44,8 @@ class GeminiLLMService:
             data = json.loads(response.text)
             return response_schema.model_validate(data)
         except ValidationError as e:
-            raise GeminiAPIError(f"Schema validation failed: {str(e)}") from e
+            raise GeminiAPIError(f"Schema validation failed: {e!s}") from e
         except json.JSONDecodeError as e:
-            raise GeminiAPIError(f"Invalid JSON returned: {str(e)}") from e
+            raise GeminiAPIError(f"Invalid JSON returned: {e!s}") from e
         except Exception as e:
-            raise GeminiAPIError(f"API Error: {str(e)}") from e
+            raise GeminiAPIError(f"API Error: {e!s}") from e

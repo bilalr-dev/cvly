@@ -17,9 +17,12 @@ def check_hallucinations(tailored_output: Any, resume: Any) -> List[Hallucinatio
     known_terms = set()
     skills = getattr(resume, "skills", None)
     if skills:
-        for t in getattr(skills, "technical", []): known_terms.add(str(t).lower())
-        for t in getattr(skills, "tools", []): known_terms.add(str(t).lower())
-        for t in getattr(skills, "certifications", []): known_terms.add(str(t).lower())
+        for t in getattr(skills, "technical", []):
+            known_terms.add(str(t).lower())
+        for t in getattr(skills, "tools", []):
+            known_terms.add(str(t).lower())
+        for t in getattr(skills, "certifications", []):
+            known_terms.add(str(t).lower())
 
     for exp in getattr(resume, "experience", []):
         for bullet in getattr(exp, "bullets", []):

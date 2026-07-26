@@ -7,6 +7,7 @@ from datetime import datetime
 
 from backend.models.match import MatchResult
 from backend.services.gemini_embeddings import GeminiEmbeddingsService
+from backend.services.gemini_llm import GeminiAPIError
 from backend.utils.cosine import cosine_similarity
 
 logger = logging.getLogger(__name__)
@@ -164,7 +165,7 @@ async def analyse_cv(
         r_embed = embeddings_service.embed_text(resume_text)
         j_embed = embeddings_service.embed_text(jd_text)
         sem_score = cosine_similarity(r_embed, j_embed)
-    except Exception:
+    except (ValueError, TypeError, GeminiAPIError):
         sem_score = 0.0
 
     exp_score = compute_experience_score(resume, jd)
