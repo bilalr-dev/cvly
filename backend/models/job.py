@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from typing import List, Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
-
 
 ContractType = Literal["CDD", "CDI", "alternance_apprentissage", "alternance_professionnalisation", "freelance", "stage"]
 SupportedLanguage = Literal["en", "fr"]
@@ -21,26 +20,26 @@ class RawJobPosting(BaseModel):
     title: str
     url: str
 
-    contract_type: Optional[ContractType] = None
-    date_posted: Optional[str] = None
-    salary_range: Optional[str] = None
+    contract_type: ContractType | None = None
+    date_posted: str | None = None
+    salary_range: str | None = None
 
 
 class ParsedJobDescription(BaseModel):
     """Structured features extracted from a job description."""
     model_config = ConfigDict(frozen=True)
 
-    contract_type: Optional[str] = None
-    education_requirement: Optional[str] = None
-    min_years_experience: Optional[int] = None
+    contract_type: str | None = None
+    education_requirement: str | None = None
+    min_years_experience: int | None = None
 
-    ats_keywords: List[str] = Field(default_factory=list)
+    ats_keywords: list[str] = Field(default_factory=list)
     company: str = ""
     job_id: str = ""
-    key_responsibilities: List[str] = Field(default_factory=list)
+    key_responsibilities: list[str] = Field(default_factory=list)
     language_of_posting: SupportedLanguage = "fr"
-    preferred_skills: List[str] = Field(default_factory=list)
-    required_certifications: List[str] = Field(default_factory=list)
-    required_skills: List[str] = Field(default_factory=list)
-    required_tools: List[str] = Field(default_factory=list)
+    preferred_skills: list[str] = Field(default_factory=list)
+    required_certifications: list[str] = Field(default_factory=list)
+    required_skills: list[str] = Field(default_factory=list)
+    required_tools: list[str] = Field(default_factory=list)
     title: str = ""

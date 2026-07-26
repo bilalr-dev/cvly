@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import docx
-from docx.opc.exceptions import PackageNotFoundError
 import pdfplumber
+from docx.opc.exceptions import PackageNotFoundError
 
 from backend.models.resume import ResumeProfile
 from backend.prompts import RESUME_PARSE_PROMPT

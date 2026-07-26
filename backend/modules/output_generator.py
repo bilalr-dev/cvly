@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone, date  # noqa: F401
+from datetime import date, datetime, timezone  # noqa: F401
 from typing import Any
 
 _ACADEMIC_KEYWORDS: frozenset[str] = frozenset([

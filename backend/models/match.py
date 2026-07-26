@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -15,32 +15,32 @@ class ATFAnalysis(BaseModel):
 
     seniority: SeniorityLevel
 
-    achievements: List[str] = Field(default_factory=list)
+    achievements: list[str] = Field(default_factory=list)
     education: str = ""
     experience_years: int = 0
     profile_type: ProfileType = "experienced"
     recommendation: str = ""
     recruiter_score: float = Field(default=0, ge=0, le=10)
-    relevant_academic_projects: List[str] = Field(default_factory=list)
-    risks: List[str] = Field(default_factory=list)
-    skills: List[str] = Field(default_factory=list)
-    strengths: List[str] = Field(default_factory=list)
+    relevant_academic_projects: list[str] = Field(default_factory=list)
+    risks: list[str] = Field(default_factory=list)
+    skills: list[str] = Field(default_factory=list)
+    strengths: list[str] = Field(default_factory=list)
     summary: str = ""
-    transferable_skills: List[str] = Field(default_factory=list)
-    weaknesses: List[str] = Field(default_factory=list)
+    transferable_skills: list[str] = Field(default_factory=list)
+    weaknesses: list[str] = Field(default_factory=list)
 
 
 class MatchResult(BaseModel):
     """Overall matching result between a resume and a job."""
     model_config = ConfigDict(frozen=True)
 
-    atf_analysis: Optional[ATFAnalysis] = None
-    gap_analysis: Optional[str] = None
+    atf_analysis: ATFAnalysis | None = None
+    gap_analysis: str | None = None
 
     experience_fit_score: float = 0.0
     job_id: str = ""
     keyword_match_pct: float = 0.0
-    matched_keywords: List[str] = Field(default_factory=list)
-    missing_keywords: List[str] = Field(default_factory=list)
+    matched_keywords: list[str] = Field(default_factory=list)
+    missing_keywords: list[str] = Field(default_factory=list)
     overall_score: float = Field(default=0, ge=0, le=100)
     semantic_score: float = 0.0

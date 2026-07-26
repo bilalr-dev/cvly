@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from typing import Any
+
 import aiohttp
-from typing import List, Any
+
+from backend.models.job import RawJobPosting
+from backend.models.preferences import SearchPreferences
+from backend.utils.dedup import generate_posting_id
 
 from .base import BaseJobAPIClient
-from backend.models.preferences import SearchPreferences
-from backend.models.job import RawJobPosting
-from backend.utils.dedup import generate_posting_id
 
 _SEARCH_URL = "https://api.adzuna.com/v1/api/jobs/fr/search/1"
 
@@ -32,7 +34,7 @@ class AdzunaClient(BaseJobAPIClient):
             source="adzuna"
         )
 
-    async def search(self, preferences: SearchPreferences) -> List[RawJobPosting]:
+    async def search(self, preferences: SearchPreferences) -> list[RawJobPosting]:
         try:
             async with aiohttp.ClientSession() as session:
                 params = {

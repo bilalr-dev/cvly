@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from typing import Any
+
 import aiohttp
-from typing import List, Any
+
+from backend.models.job import RawJobPosting
+from backend.models.preferences import SearchPreferences
+from backend.utils.dedup import generate_posting_id
 
 from .base import BaseJobAPIClient
-from backend.models.preferences import SearchPreferences
-from backend.models.job import RawJobPosting
-from backend.utils.dedup import generate_posting_id
 
 _AUTH_URL = "https://entreprise.francetravail.fr/connexion/oauth2/access_token"
 _SEARCH_URL = "https://api.francetravail.io/partenaire/offresdemploi/v2/offres/search"
@@ -44,7 +46,7 @@ class FranceTravailClient(BaseJobAPIClient):
             source="france_travail"
         )
 
-    async def search(self, preferences: SearchPreferences) -> List[RawJobPosting]:
+    async def search(self, preferences: SearchPreferences) -> list[RawJobPosting]:
         if not self.access_token:
             await self.authenticate()
 

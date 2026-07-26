@@ -19,7 +19,6 @@ from .tailoring import (
     TailoredOutput,
 )
 
-
 __all__ = [
     "ATFAnalysis",
     "AcademicProject",

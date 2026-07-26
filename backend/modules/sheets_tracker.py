@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone, date  # noqa: F401
+from datetime import date, datetime, timezone  # noqa: F401
+
 import gspread
 from google.oauth2.service_account import Credentials
 
-from backend.models import RawJobPosting, ParsedJobDescription, MatchResult
+from backend.models import MatchResult, ParsedJobDescription, RawJobPosting
 
 logger = logging.getLogger(__name__)
 

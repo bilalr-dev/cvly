@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import google.generativeai as genai
-from typing import List
+
 from backend.services.gemini_llm import GeminiAPIError
+
 
 class GeminiEmbeddingsService:
 
@@ -10,7 +11,7 @@ class GeminiEmbeddingsService:
         self.api_key = api_key
         genai.configure(api_key=api_key)
 
-    def embed_text(self, text: str) -> List[float]:
+    def embed_text(self, text: str) -> list[float]:
 
         try:
             model = genai.GenerativeModel("models/text-embedding-004")

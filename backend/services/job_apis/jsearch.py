@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from typing import Any
+
 import aiohttp
-from typing import List, Any
+
+from backend.models.job import RawJobPosting
+from backend.models.preferences import SearchPreferences
+from backend.utils.dedup import generate_posting_id
 
 from .base import BaseJobAPIClient
-from backend.models.preferences import SearchPreferences
-from backend.models.job import RawJobPosting
-from backend.utils.dedup import generate_posting_id
 
 _SEARCH_URL = "https://jsearch.p.rapidapi.com/search"
 
@@ -31,7 +33,7 @@ class JSearchClient(BaseJobAPIClient):
             description_text=""
         )
 
-    async def search(self, preferences: SearchPreferences) -> List[RawJobPosting]:
+    async def search(self, preferences: SearchPreferences) -> list[RawJobPosting]:
         try:
             async with aiohttp.ClientSession() as session:
                 headers = {"X-RapidAPI-Key": self.api_key}

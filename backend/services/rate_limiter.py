@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from collections import deque
 
+
 class AsyncRateLimiter:
 
     def __init__(self, max_calls: int = 12, period_seconds: float = 60.0) -> None:

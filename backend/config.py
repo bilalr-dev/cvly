@@ -1,25 +1,23 @@
 from __future__ import annotations
 
-from typing import Optional
-
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class AppSettings(BaseSettings):
     gemini_api_key: str
 
-    adzuna_app_id: Optional[str] = None
-    adzuna_app_key: Optional[str] = None
+    adzuna_app_id: str | None = None
+    adzuna_app_key: str | None = None
 
-    france_travail_client_id: Optional[str] = None
-    france_travail_client_secret: Optional[str] = None
+    france_travail_client_id: str | None = None
+    france_travail_client_secret: str | None = None
 
-    google_cse_api_key: Optional[str] = None
-    google_cse_id: Optional[str] = None
+    google_cse_api_key: str | None = None
+    google_cse_id: str | None = None
 
-    google_sheet_id: Optional[str] = None
+    google_sheet_id: str | None = None
 
-    jsearch_api_key: Optional[str] = None
+    jsearch_api_key: str | None = None
 
     app_port: int = 8000
     default_country: str = "FR"

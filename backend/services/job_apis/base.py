@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import List
 
-from backend.models.preferences import SearchPreferences
 from backend.models.job import RawJobPosting
+from backend.models.preferences import SearchPreferences
+
 
 class BaseJobAPIClient(ABC):
 
     @abstractmethod
-    async def search(self, preferences: SearchPreferences) -> List[RawJobPosting]:
+    async def search(self, preferences: SearchPreferences) -> list[RawJobPosting]:
         pass

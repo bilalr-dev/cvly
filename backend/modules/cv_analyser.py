@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import logging
-from typing import List, Tuple, Dict, Any
 import re
-from datetime import datetime
+from datetime import datetime, timezone
+from typing import Any
 
 from backend.models.match import MatchResult
 from backend.services.gemini_embeddings import GeminiEmbeddingsService
@@ -26,7 +26,7 @@ def calculate_years(entries: Any) -> float:
     if not isinstance(entries, list):
         return 0.0
     total = 0.0
-    current_year = datetime.now().year
+    current_year = datetime.now(tz=timezone.utc).year
     for exp in entries:
         start_y = _extract_year(getattr(exp, "start_date", None))
         end_y = getattr(exp, "end_date", None)
@@ -38,8 +38,8 @@ def calculate_years(entries: Any) -> float:
 def compute_keyword_score(
     resume: Any,
     jd: Any,
-    alias_map: Dict[str, List[str]]
-) -> Tuple[List[str], List[str], float]:
+    alias_map: dict[str, list[str]]
+) -> tuple[list[str], list[str], float]:
 
     resume_skills = set()
     skills_obj = getattr(resume, "skills", None)
@@ -82,10 +82,7 @@ def compute_keyword_score(
         else:
             missing.append(req)
 
-    if not required_skills:
-        pct = 1.0
-    else:
-        pct = len(matched) / len(required_skills)
+    pct = 1.0 if not required_skills else len(matched) / len(required_skills)
 
     return matched, missing, pct
 
@@ -131,7 +128,7 @@ async def analyse_cv(
     resume: Any,
     jd: Any,
     embeddings_service: GeminiEmbeddingsService,
-    alias_map: Dict[str, List[str]]
+    alias_map: dict[str, list[str]]
 ) -> MatchResult:
     """Quantifies deterministic keyword extraction scoring rules against strict algorithmic profiles."""
     matched_k, missing_k, keyword_pct = compute_keyword_score(resume, jd, alias_map)

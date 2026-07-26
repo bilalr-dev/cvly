@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Literal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -11,7 +11,7 @@ class RewrittenBullet(BaseModel):
     original: str
     rewritten: str
 
-    keywords_added: List[str] = Field(default_factory=list)
+    keywords_added: list[str] = Field(default_factory=list)
 
 
 class RewrittenProjectBullet(BaseModel):
@@ -20,15 +20,15 @@ class RewrittenProjectBullet(BaseModel):
     project_name: str
     rewritten: str
 
-    keywords_added: List[str] = Field(default_factory=list)
+    keywords_added: list[str] = Field(default_factory=list)
 
 
 class TailoredOutput(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    rewritten_experience_bullets: List[RewrittenBullet] = Field(default_factory=list)
-    rewritten_project_bullets: List[RewrittenProjectBullet] = Field(default_factory=list)
-    unfillable_gaps: List[str] = Field(default_factory=list)
+    rewritten_experience_bullets: list[RewrittenBullet] = Field(default_factory=list)
+    rewritten_project_bullets: list[RewrittenProjectBullet] = Field(default_factory=list)
+    unfillable_gaps: list[str] = Field(default_factory=list)
 
 
 class HallucinationWarning(BaseModel):

@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import logging
-from typing import List
 
-from backend.models.job import RawJobPosting, ParsedJobDescription
-from backend.services.gemini_llm import GeminiLLMService, GeminiAPIError
-from backend.services.rate_limiter import AsyncRateLimiter
+from backend.models.job import ParsedJobDescription, RawJobPosting
 from backend.prompts import JD_PARSE_PROMPT
+from backend.services.gemini_llm import GeminiAPIError, GeminiLLMService
+from backend.services.rate_limiter import AsyncRateLimiter
 
 logger = logging.getLogger(__name__)
 
@@ -25,11 +24,11 @@ async def parse_job_description(
     return res.model_copy(update={"job_id": job_id})
 
 async def parse_job_descriptions(
-    postings: List[RawJobPosting],
+    postings: list[RawJobPosting],
     gemini_service: GeminiLLMService,
     rate_limiter: AsyncRateLimiter
-) -> List[ParsedJobDescription]:
-    results: List[ParsedJobDescription] = []
+) -> list[ParsedJobDescription]:
+    results: list[ParsedJobDescription] = []
 
     for posting in postings:
         if not posting.description_text:
