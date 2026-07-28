@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import aiohttp
@@ -9,6 +10,8 @@ from backend.models.preferences import SearchPreferences
 from backend.utils.dedup import generate_posting_id
 
 from .base import BaseJobAPIClient
+
+logger = logging.getLogger(__name__)
 
 _SEARCH_URL = "https://jsearch.p.rapidapi.com/search"
 
@@ -38,7 +41,16 @@ class JSearchClient(BaseJobAPIClient):
             async with aiohttp.ClientSession() as session:
                 headers = {"X-RapidAPI-Key": self.api_key}
 
-                async with session.get(_SEARCH_URL, headers=headers, params={}) as response:
+                query_parts = []
+                if getattr(preferences, "titles", None):
+                    query_parts.append(" ".join(preferences.titles))
+                if getattr(preferences, "location", None):
+                    query_parts.append(f"in {preferences.location}")
+
+                params = {"query": " ".join(query_parts) if query_parts else "developer"}
+                logger.info(f"JSearch params: {params}")
+
+                async with session.get(_SEARCH_URL, headers=headers, params=params) as response:
                     data = await response.json()
 
                 return [self._map_response(item) for item in data.get("data", [])]

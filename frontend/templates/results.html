@@ -1,42 +1,45 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="w-full space-y-6">
-    <div class="flex items-center justify-between">
-        <h2 class="text-2xl font-bold">Results</h2>
+    <div class="flex items-center justify-between mb-6">
+        <h2 class="text-2xl font-bold">{{ t.results_title }}</h2>
         <div class="flex items-center gap-2">
             <button class="px-3 py-1.5 text-sm font-medium border border-slate-200 bg-white rounded flex items-center gap-2 hover:bg-slate-50 transition-colors">
                 <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg>
-                Filter
+                {{ t.filter_btn }}
             </button>
         </div>
     </div>
 
     {% if not pipeline_run %}
-    <div class="bg-white p-12 rounded-xl border border-slate-200 shadow-sm text-center">
-        <div class="mx-auto w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-            <svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+    <div class="min-h-[60vh] flex items-center justify-center">
+        <div class="bg-white border border-slate-200 rounded-xl text-center py-20 px-10 w-full shadow-sm">
+            <div class="w-12 h-12 rounded-full bg-slate-100 mx-auto mb-4 flex items-center justify-center">
+                <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+            </div>
+            <h3 class="text-[15px] text-slate-600 mb-2 font-semibold">{{ t.empty_title }}</h3>
+            <p class="text-sm text-slate-400 mb-5">{{ t.empty_sub }}</p>
+            <a href="/" class="bg-indigo-600 hover:bg-indigo-700 text-white border-none rounded-lg font-semibold cursor-pointer px-5 py-2.5 inline-block transition-colors no-underline">{{ t.empty_link }}</a>
         </div>
-        <h3 class="text-lg font-bold text-slate-800 mb-2">No pipeline has run yet</h3>
-        <p class="text-slate-500 max-w-md mx-auto mb-6">Configure your settings and run the pipeline to discover matching jobs tailored to your resume.</p>
-        <a href="/" class="inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-lg transition-colors">Go to Dashboard</a>
     </div>
     {% elif not jobs %}
-    <div class="bg-white p-12 rounded-xl border border-slate-200 shadow-sm text-center">
-        <h3 class="text-lg font-bold text-slate-800">No jobs match your criteria.</h3>
-        <p class="text-slate-500 mt-2">Try relaxing your location radius or seniority levels.</p>
+    <div class="min-h-[60vh] flex items-center justify-center">
+        <div class="bg-white border border-slate-200 rounded-xl text-center py-20 px-10 w-full shadow-sm">
+            <h3 class="text-[15px] text-slate-600 mb-2 font-semibold">{{ t.empty_title }}</h3>
+            <p class="text-sm text-slate-400">{{ t.empty_results_msg }}</p>
+        </div>
     </div>
     {% else %}
-    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+    <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
         <table class="w-full text-left border-collapse text-sm">
             <thead>
                 <tr class="bg-slate-50 border-b border-slate-200 text-slate-600">
-                    <th class="p-4 font-semibold w-1/4">Company</th>
-                    <th class="p-4 font-semibold w-1/4">Title</th>
+                    <th class="p-4 font-semibold w-1/4">{{ t.col_company }}</th>
+                    <th class="p-4 font-semibold w-1/4">{{ t.col_title }}</th>
                     <th class="p-4 font-semibold">Match</th>
-                    <th class="p-4 font-semibold">Location</th>
-                    <th class="p-4 font-semibold">Contract</th>
-                    <th class="p-4 font-semibold">Actions</th>
+                    <th class="p-4 font-semibold">{{ t.col_location }}</th>
+                    <th class="p-4 font-semibold">{{ t.col_contract }}</th>
+                    <th class="p-4 font-semibold">{{ t.col_actions }}</th>
                 </tr>
             </thead>
             <tbody>
@@ -47,5 +50,4 @@
         </table>
     </div>
     {% endif %}
-</div>
 {% endblock %}

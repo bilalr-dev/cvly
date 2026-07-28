@@ -1,9 +1,33 @@
-<div class="w-full space-y-2 mt-4">
-    <div class="flex justify-between text-sm">
-        <span class="font-medium text-indigo-600">Running Pipeline...</span>
-        <span class="text-slate-500 font-medium">Auto-updating process...</span>
+<div hx-get="/pipeline/progress"
+     hx-trigger="every 2s"
+     hx-swap="outerHTML"
+     class="bg-white border border-slate-200 rounded-xl p-5">
+
+  <div class="text-sm text-slate-600 mb-3">
+    {{ t.get("step_prefix", "Step") }} {{ step }}/{{ total }} — {{ step_label }}
+    {% if step_detail %}
+    <div class="text-xs text-slate-400 mt-1">{{ step_detail }}</div>
+    {% endif %}
+  </div>
+
+  <div class="flex gap-1.5 mb-3">
+    {% for i in range(1, total + 1) %}
+    <div class="flex-1 h-1.5 rounded-full {% if i < step %}bg-indigo-600{% elif i == step %}bg-indigo-300{% else %}bg-slate-200{% endif %}"></div>
+    {% endfor %}
+  </div>
+
+  <div class="flex justify-between">
+    {% set step_names = [
+      t.get("step_parsing", "Parsing"),
+      t.get("step_discovering", "Discovering"),
+      t.get("step_parsing_jds", "Parsing JDs"),
+      t.get("step_scoring", "Scoring"),
+      t.get("step_tailoring", "Tailoring"),
+    ] %}
+    {% for name in step_names %}
+    <div class="text-[11px] {% if loop.index <= step %}text-slate-700{% else %}text-slate-400{% endif %} text-center" style="max-width:19%">
+      {{ name }}
     </div>
-    <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden shadow-inner">
-        <div class="bg-indigo-600 h-full rounded-full" style="width: 50%"></div>
-    </div>
+    {% endfor %}
+  </div>
 </div>

@@ -65,6 +65,8 @@ async def generate_cover_letter(
         .replace("{alternance_rhythm}", alt_rhythm)
         .replace("{job_description}", " ".join([str(j) for j in jd_desc]))
         .replace("{strengths}", "N/A" if not strengths else " ".join([str(s) for s in strengths]))
+        .replace("{target_company}", str(getattr(jd, "company", "") or ""))
+        .replace("{target_title}", str(getattr(jd, "title", "") or ""))
     )
 
-    return gemini_service.generate_content(prompt)
+    return gemini_service.generate_text(prompt, temperature=0.3)  # Reduced from 0.5 — prevents content fabrication in cover letters

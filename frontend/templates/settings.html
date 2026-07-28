@@ -1,94 +1,108 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="max-w-3xl mx-auto space-y-8">
-    <div>
-        <h2 class="text-2xl font-bold mb-2">Settings</h2>
-        <p class="text-sm text-slate-500">Configure your resume and job search preferences.</p>
+    <div class="mb-5">
+        <h2 class="text-2xl font-bold mb-2">{{ t.settings_title }}</h2>
+        <p class="text-sm text-slate-500">{{ t.settings_subtitle }}</p>
     </div>
 
-    <section class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-        <h3 class="text-lg font-bold mb-4 border-b border-slate-100 pb-2">Resume Upload</h3>
+    <section class="bg-white border border-slate-200 rounded-xl p-6 mb-5">
+        <h3 class="text-lg font-bold mb-4 border-b border-slate-100 pb-2">{{ t.resume_section }}</h3>
 
-        <form hx-post="/settings/upload" hx-encoding="multipart/form-data" hx-target="#resume-summary" class="space-y-4">
-            <div class="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:bg-slate-50 transition-colors">
-                <input type="file" name="file" accept=".pdf,.docx" class="mb-2 max-w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100 cursor-pointer" required>
-                <p class="text-xs text-slate-500 mt-2">PDF or DOCX max 10MB</p>
-            </div>
-
-            <div class="flex justify-end">
-                <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">Upload & Parse</button>
-            </div>
-        </form>
-
-        <div id="resume-summary" class="mt-4">
-            {% if resume_profile %}
-            <div class="bg-green-50 text-green-800 p-4 rounded-lg text-sm border border-green-200">
-                <p class="font-bold flex items-center gap-2">✓ Resume Loaded</p>
-                <div class="mt-2 text-green-700">Name: {{ resume_profile.name }}<br>Profile: {{ resume_profile.detected_profile }}</div>
-            </div>
-            {% endif %}
+        <div id="upload-feedback">
+          {% if resume_summary %}
+            {% include "partials/upload_success.html" %}
+          {% else %}
+            <label id="upload-zone" class="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-300 rounded-xl p-9 cursor-pointer text-slate-500 hover:bg-slate-50 transition-colors">
+              <input type="file" accept=".pdf,.docx"
+                     hx-post="/settings/upload"
+                     hx-target="#upload-feedback"
+                     hx-swap="innerHTML"
+                     hx-encoding="multipart/form-data"
+                     name="file"
+                     class="hidden"
+                     onchange="document.getElementById('hidden-upload-btn').click();" />
+              <div class="text-sm font-semibold text-slate-700">{{ t.drop_zone_title }}</div>
+              <div class="text-xs">{{ t.drop_zone_sub }}</div>
+            </label>
+            <form id="resume-form" class="hidden">
+                 <button id="hidden-upload-btn" type="submit" hx-post="/settings/upload" hx-encoding="multipart/form-data" hx-target="#upload-feedback" hx-swap="innerHTML" class="hidden"></button>
+            </form>
+          {% endif %}
         </div>
     </section>
 
-    <section class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-        <h3 class="text-lg font-bold mb-4 border-b border-slate-100 pb-2">Search Preferences</h3>
+    <section class="bg-white border border-slate-200 rounded-xl p-6">
+        <h3 class="text-lg font-bold mb-4 border-b border-slate-100 pb-2">{{ t.pref_title }}</h3>
 
-        <form hx-post="/settings/preferences" class="space-y-6">
-            <div class="grid grid-cols-2 gap-6">
+        <form hx-post="/settings/preferences" hx-target="#pref-feedback" hx-swap="innerHTML">
+            <div class="grid grid-cols-2 gap-x-6 gap-y-4 mb-5">
                 <div class="col-span-2">
-                    <label class="block text-sm font-semibold text-slate-700 mb-1">Target Titles (Comma separated)</label>
-                    <input type="text" name="titles" value="{{ preferences.titles|join(', ') if preferences and preferences.titles else '' }}" placeholder="Software Engineer, DevOps" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 outline-none" required>
+                    <label class="block text-sm font-semibold text-slate-700 mb-1.5">{{ t.field_titles }}</label>
+                    <input type="text" name="titles" value="{{ preferences.titles|join(', ') if preferences and preferences.titles else '' }}" placeholder="Software Engineer, DevOps" class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-600 outline-none" required>
+                </div>
+                <div class="relative">
+                    <label class="block text-sm font-semibold text-slate-700 mb-1.5">{{ t.field_location }}</label>
+                    <input type="text"
+                           name="location"
+                           id="location-input"
+                           value="{{ preferences.location if preferences else '' }}"
+                           placeholder="Paris, France"
+                           autocomplete="off"
+                           oninput="debounceLocationSearch(this.value)"
+                           class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-600 outline-none">
+                    <ul id="location-suggestions"
+                        class="hidden absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto text-sm"></ul>
                 </div>
                 <div>
-                    <label class="block text-sm font-semibold text-slate-700 mb-1">Base Location</label>
-                    <input type="text" name="location" value="{{ preferences.location if preferences else '' }}" placeholder="Paris, Île-de-France" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-600 outline-none">
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold text-slate-700 mb-1">Radius (km)</label>
-                    <input type="number" name="radius" value="{{ preferences.radius if preferences else 50 }}" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-600 outline-none">
+                    <label class="block text-sm font-semibold text-slate-700 mb-1.5">{{ t.field_radius }}</label>
+                    <input type="text" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" name="radius_km" value="{{ preferences.radius_km if preferences else '30' }}" oninput="this.value = this.value.replace(/[^0-9.,]/g, '')" class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-600 outline-none">
                 </div>
 
                 <div class="col-span-2 flex items-center gap-2">
-                    <input type="checkbox" name="remote" id="remote" class="rounded text-indigo-600 focus:ring-indigo-600" {% if preferences and preferences.remote %}checked{% endif %}>
-                    <label for="remote" class="text-sm font-medium text-slate-700">Include Remote Jobs</label>
+                    <input type="checkbox" name="remote_ok" id="remote_ok" class="rounded text-indigo-600 focus:ring-indigo-600" {% if preferences and preferences.remote_ok %}checked{% endif %}>
+                    <label for="remote_ok" class="text-sm font-medium text-slate-700">{{ t.field_remote }}</label>
                 </div>
 
                 <div>
-                    <label class="block text-sm font-semibold text-slate-700 mb-2">Seniority</label>
-                    <div class="space-y-2">
-                        <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="seniority_levels" value="Stagiaire" class="rounded"> Stagiaire</label>
-                        <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="seniority_levels" value="Alternant" class="rounded"> Alternant</label>
-                        <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="seniority_levels" value="Junior" class="rounded"> Junior</label>
+                    <label class="block text-sm font-semibold text-slate-700 mb-2">{{ t.field_seniority }}</label>
+                    <div class="flex flex-wrap gap-x-4 gap-y-2">
+                        {% for opt in ["Stagiaire", "Alternant", "Junior", "Mid", "Senior", "Lead"] %}
+                        <label class="flex items-center gap-1.5 text-sm text-slate-600 cursor-pointer">
+                            <input type="checkbox" name="seniority" value="{{ opt }}"
+                                   {% if preferences and opt in preferences.get("seniority", []) %}checked{% endif %}
+                                   class="w-3.5 h-3.5 accent-indigo-600 rounded focus:ring-indigo-600" />
+                            {{ opt }}
+                        </label>
+                        {% endfor %}
                     </div>
                 </div>
 
                 <div>
-                    <label class="block text-sm font-semibold text-slate-700 mb-2">Contract Type</label>
-                    <div class="space-y-2">
-                        <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="contract_types" value="Stage" class="rounded"> Stage</label>
-                        <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="contract_types" value="Alternance" class="rounded"> Alternance</label>
-                        <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="contract_types" value="CDI" class="rounded"> CDI</label>
+                    <label class="block text-sm font-semibold text-slate-700 mb-2">{{ t.field_contract }}</label>
+                    <div class="flex flex-wrap gap-x-4 gap-y-2">
+                        {% for opt in ["CDI", "CDD", "Freelance", "Stage", "Alternance (apprentissage)", "Alternance (professionnalisation)"] %}
+                        <label class="flex items-center gap-1.5 text-sm text-slate-600 cursor-pointer">
+                            <input type="checkbox" name="contract" value="{{ opt }}"
+                                   {% if preferences and opt in preferences.get("contract", []) %}checked{% endif %}
+                                   class="w-3.5 h-3.5 accent-indigo-600 rounded focus:ring-indigo-600" />
+                            {{ opt }}
+                        </label>
+                        {% endfor %}
                     </div>
                 </div>
 
                 <div class="col-span-2">
-                    <label class="block text-sm font-semibold text-slate-700 mb-1">Exclude Keywords</label>
-                    <input type="text" name="exclude" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-600 outline-none" placeholder="PHP, Consulting">
-                </div>
-                <div class="col-span-2">
-                    <label class="block text-sm font-semibold text-slate-700 mb-1">App Language Preference</label>
-                    <select name="language" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-600 outline-none">
-                        <option value="fr">French (fr)</option>
-                        <option value="en">English (en)</option>
-                    </select>
+                    <label class="block text-sm font-semibold text-slate-700 mb-1.5">{{ t.field_exclude }}</label>
+                    <input type="text" name="exclude_keywords" value="{{ preferences.exclude_keywords if preferences else '' }}" class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-600 outline-none" placeholder="PHP, Consulting">
                 </div>
             </div>
 
-            <div class="flex justify-end pt-4 border-t border-slate-100">
-                <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-lg transition-colors">Save Preferences</button>
+            <div id="pref-feedback" class="mb-4 empty:hidden"></div>
+
+            <div class="flex justify-start">
+                <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white border-none rounded-lg px-5 py-3 font-semibold cursor-pointer transition-colors">{{ t.save_prefs }}</button>
             </div>
         </form>
     </section>
-</div>
 {% endblock %}

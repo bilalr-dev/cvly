@@ -5,6 +5,14 @@ import re
 
 from backend.models.job import RawJobPosting
 
+def is_truncated(text: str) -> bool:
+    """Return True if the description appears to be a truncated excerpt."""
+    if not text:
+        return True
+    stripped = text.rstrip()
+    return stripped.endswith("…") or stripped.endswith("...") or len(text) < 400
+
+
 _COMPANY_SUFFIX_RE = re.compile(r'\b(sas|sarl|sa|ltd|inc|gmbh|s\.a\.|s\.a\.r\.l\.)(?=\s|$)', re.IGNORECASE)
 _TITLE_PREFIX_RE = re.compile(r'\b(senior|junior|lead|staff|principal)\b', re.IGNORECASE)
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 ContractType = Literal["CDD", "CDI", "alternance_apprentissage", "alternance_professionnalisation", "freelance", "stage"]
 SupportedLanguage = Literal["en", "fr"]
@@ -43,3 +43,10 @@ class ParsedJobDescription(BaseModel):
     required_skills: list[str] = Field(default_factory=list)
     required_tools: list[str] = Field(default_factory=list)
     title: str = ""
+
+    @field_validator("job_id", "title", "company", mode="before")
+    @classmethod
+    def none_to_empty_str(cls, v: object) -> str:
+        if v is None:
+            return ""
+        return v
