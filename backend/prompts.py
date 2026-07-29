@@ -329,7 +329,7 @@ MATCH STRENGTHS: {strengths}
 Return the cover letter as plain text. No JSON, no markdown, no preamble."""
 
 
-# Evaluator agent — generator-critic QA gate (temperature 0.0)
+# evaluator agent: generator-critic QA gate
 # Compares original vs. rewritten bullets, flags fabricated content
 # Fails safe to reject on API error
 EVALUATOR_AGENT_PROMPT: str = """You are a factual accuracy auditor for CV/resume content. Your sole task is to compare original resume bullets against their rewritten versions and identify any fabricated content.

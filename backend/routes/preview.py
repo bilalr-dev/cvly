@@ -157,7 +157,7 @@ def get_job_data(job_id: str) -> dict[str, Any] | None:
 async def preview_job(request: Request, job_id: str) -> HTMLResponse:
     """Preview tailored CV for a specific job."""
     t = get_translations()
-    logger.info("Preview - job_id=%s", job_id)
+    logger.debug("Preview - job_id=%s", job_id)
 
     job = get_job_data(job_id)
     if not job:
@@ -244,7 +244,7 @@ async def preview_job(request: Request, job_id: str) -> HTMLResponse:
         # Check hallucinations
         warnings = check_hallucinations(tailored_output, resume)
 
-        # Evaluator agent QA gate — independent LLM critic
+        # independent LLM critic
         orig_texts = [rb.original for rb in tailored_output.rewritten_experience_bullets]
         rewritten_texts = [rb.rewritten for rb in tailored_output.rewritten_experience_bullets]
 
@@ -322,7 +322,7 @@ async def preview_job(request: Request, job_id: str) -> HTMLResponse:
         else:
             should_translate = False
 
-        logger.info("Translation check - language=%s original_lang=%s french_hits=%d should_translate=%s",
+        logger.debug("Translation check - language=%s original_lang=%s french_hits=%d should_translate=%s",
                     language, original_lang, french_hits, should_translate)
 
         if should_translate and not bullet_pairs:
@@ -333,11 +333,11 @@ async def preview_job(request: Request, job_id: str) -> HTMLResponse:
             )
             try:
                 resume_md_raw = gemini.generate_text(translation_prompt_text, temperature=0.0)
-                logger.info("Full document translated to %s", lang_name)
+                logger.debug("Full document translated to %s", lang_name)
             except GeminiAPIError as e:
                 logger.warning("Document translation failed, using markers: %s", e)
         elif should_translate:
-            # Translate summary and soft skills only (not bullets — already translated by tailoring)
+            # non-bullet contents only (tailoring translates bullets separately)
             items = [resume.summary or ""]
             soft_skills = list(getattr(resume.skills, "soft", []) or [])
             for skill in soft_skills:
@@ -436,14 +436,14 @@ async def approve_job(request: Request, job_id: str) -> RedirectResponse:
         "company": job["company"],
     }
 
-    logger.info("Job approved: %s at %s", job["title"], job["company"])
+    logger.debug("Job approved: %s at %s", job["title"], job["company"])
     # TODO: wire up sheets_tracker.append_job and file output (Milestone #1)
     return RedirectResponse(url="/results", status_code=302)
 
 
 @router.post("/{job_id}/regenerate")
 async def regenerate_job(request: Request, job_id: str) -> RedirectResponse:
-    """Regenerate tailored CV — clear cache and re-run."""
+    """Clear cache and regenerate tailored CV."""
     tailored_cache = app_state.setdefault("tailored_outputs", {})
     language = app_state.get("language", "fr")
     tailored_cache.pop(f"{job_id}_{language}", None)
@@ -466,6 +466,6 @@ async def save_edits(job_id: str, request: Request) -> JSONResponse:
         existing = dict(tailored_cache[cache_key])
         existing["cover_letter"] = new_cover_letter
         tailored_cache[cache_key] = existing
-        logger.info("Cover letter edits saved for %s", job_id)
+        logger.debug("Cover letter edits saved for %s", job_id)
 
     return JSONResponse(content={"status": "saved"})

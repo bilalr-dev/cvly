@@ -69,7 +69,7 @@ def check_hallucinations(tailored_output: Any, resume: Any) -> list[Hallucinatio
                 if not w_clean:
                     continue
 
-                # Check for fabricated metrics — numbers/percentages not in original CV
+                # check for numbers/percentages not in original CV
                 stripped = w_clean.replace(".", "").replace(",", "").replace("%", "")
                 if stripped.isdigit() or "%" in w_clean:
                     # Search for this metric in original resume bullets

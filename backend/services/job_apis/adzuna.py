@@ -51,7 +51,7 @@ class AdzunaClient(BaseJobAPIClient):
                 if getattr(preferences, "location", None):
                     params["where"] = preferences.location
 
-                logger.info(f"Adzuna search params: {params}")
+                logger.debug(f"Adzuna search params: {params}")
 
                 async with session.get(_SEARCH_URL, params=params) as response:
                     data = await response.json()
@@ -85,7 +85,7 @@ class AdzunaClient(BaseJobAPIClient):
                         return None
                     html = await resp.text()
 
-            # Extract text content — look for common job description containers
+            # parsing standard JD payload structures
             # Remove script, style, nav, header, footer tags
             # Extract visible text from main content area
             import re

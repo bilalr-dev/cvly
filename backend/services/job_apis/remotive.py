@@ -1,4 +1,4 @@
-"""Remotive job API client — free, no API key required.
+"""Remotive job API client (free).
 
 API docs: https://remotive.com/api/remote-jobs
 Endpoint: https://remotive.com/api/remote-jobs
@@ -21,7 +21,7 @@ _BASE_URL = "https://remotive.com/api/remote-jobs"
 
 
 class RemotiveClient:
-    """Free remote jobs API — no API key needed."""
+    """Free remote jobs API (no key)."""
 
     def __init__(self) -> None:
         pass
@@ -30,6 +30,7 @@ class RemotiveClient:
         """Search Remotive for remote jobs matching preferences."""
         search_term = " ".join(preferences.titles) if getattr(preferences, "titles", None) else "developer"
 
+        # Note: Remotive API does not support radius filtering.
         params: dict[str, str] = {
             "search": search_term,
             "limit": "50",
@@ -75,32 +76,30 @@ class RemotiveClient:
                 logger.debug("Skipping Remotive item: %s", e)
                 continue
 
-        # Client-side location filter — Remotive is remote-only
-        # Keep jobs that either match the user's location OR are genuinely remote
+        # Client-side location filter
         user_location = preferences.location.split(",")[0].strip().lower() if getattr(preferences, "location", None) else ""
         remote_ok = getattr(preferences, "remote_ok", False)
 
-        if user_location and not remote_ok:
+        if user_location:
             location_filtered = []
             for posting in results:
                 loc_lower = posting.location.lower()
+
                 # Keep if location mentions user's city or country
                 if user_location in loc_lower:
                     location_filtered.append(posting)
-                # Keep if location is generic "Worldwide" or "Europe" — could include user's location
-                elif any(kw in loc_lower for kw in ["worldwide", "europe", "eu", "emea", "anywhere"]):
-                    location_filtered.append(posting)
-                # Drop USA-only, Canada-only, etc.
-                elif any(kw in loc_lower for kw in ["usa", "united states", "canada", "uk only", "us only"]):
                     continue
-                else:
+
+                # Only keep remote/worldwide if user explicitly allows remote
+                if remote_ok:
                     location_filtered.append(posting)
+                    continue
 
-            logger.info("Remotive location filter: %d → %d", len(results), len(location_filtered))
+                # Remote is OFF — drop everything that doesn't match the city
+
+            logger.debug("Remotive location filter: %d → %d (location='%s', remote_ok=%s)",
+                       len(results), len(location_filtered), user_location, remote_ok)
             results = location_filtered
-        elif remote_ok:
-            # User is OK with remote — keep everything
-            pass
 
-        logger.info("Remotive returned %d results", len(results))
+        logger.debug("Remotive returned %d results", len(results))
         return results

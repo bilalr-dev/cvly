@@ -1,4 +1,4 @@
-"""Module 5 — CV bullet rewriting with two-stage keyword validation.
+"""Module 5: CV bullet rewriting with two-stage keyword validation.
 
 Stage 1 (analyse_keywords): Classifies missing keywords as applicable
 or unfillable using LLM at temperature 0.0. No rewriting.
@@ -62,7 +62,7 @@ async def analyse_keywords(
     return gemini_service.generate_json(
         prompt=prompt,
         response_schema=KeywordAnalysisResult,
-        temperature=0.0,  # Deterministic classification — no creativity
+        temperature=0.0,  # deterministic classification restricts creativity
     )
 
 async def rewrite_bullets(
@@ -108,7 +108,7 @@ async def rewrite_bullets(
                 alt_rhythm = str(e.alternance_rhythm)
                 break
 
-    # Stage 1: classify keywords — only validated ones reach the rewrite prompt
+    # filter validated keywords for rewrite prompt
     analysis_result = await analyse_keywords(
         resume=resume,
         missing_keywords=miss_keys,
@@ -133,5 +133,5 @@ async def rewrite_bullets(
     return gemini_service.generate_json(
         prompt=prompt,
         response_schema=TailoredOutput,
-        temperature=0.2  # Low temp for factual rewriting — prevents creative drift
+        temperature=0.2  # prevents creative drift
     )

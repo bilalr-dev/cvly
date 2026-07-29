@@ -20,6 +20,12 @@ from backend.services.job_apis.jsearch import JSearchClient
 from backend.services.job_apis.remotive import RemotiveClient
 from backend.services.rate_limiter import AsyncRateLimiter
 from backend.state import app_state, get_translations, save_pipeline_data, templates
+from backend.utils.constants import (
+    ALTERNANCE_KEYWORDS,
+    CONTRACT_KEYWORDS,
+    SENIORITY_KEYWORDS,
+    TITLE_CONTRACT_SIGNALS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +38,7 @@ async def execute_pipeline() -> None:
 
     try:
         app_state["pipeline_status"] = "running"
+        logger.info("Pipeline started")
         app_state["pipeline_step"] = 1
         app_state["pipeline_step_detail"] = ""
         api_clients = []
@@ -43,7 +50,7 @@ async def execute_pipeline() -> None:
                     client_secret=settings.france_travail_client_secret,
                 )
             )
-            logger.info("France Travail client configured")
+            logger.debug("France Travail client configured")
 
         if settings.adzuna_app_id and settings.adzuna_app_key:
             api_clients.append(
@@ -52,20 +59,20 @@ async def execute_pipeline() -> None:
                     app_key=settings.adzuna_app_key,
                 )
             )
-            logger.info("Adzuna client configured")
+            logger.debug("Adzuna client configured")
 
         if settings.jsearch_api_key:
             api_clients.append(
                 JSearchClient(api_key=settings.jsearch_api_key)
             )
-            logger.info("JSearch client configured")
+            logger.debug("JSearch client configured")
 
-        # Free APIs — no credentials required
+        # free external APIs (no credentials required)
         api_clients.append(ArbeitnowClient())
-        logger.info("Arbeitnow client configured (free, no key)")
+        logger.debug("Arbeitnow client configured (free, no key)")
 
         api_clients.append(RemotiveClient())
-        logger.info("Remotive client configured (free, no key)")
+        logger.debug("Remotive client configured (free, no key)")
 
         if not api_clients:
             logger.warning("No job API clients configured — check your .env file")
@@ -104,7 +111,8 @@ async def execute_pipeline() -> None:
             exclude_list = exclude
 
         app_state["pipeline_step"] = 2
-        logger.info("Discovering jobs for titles=%s, location=%s", for_titles, location)
+        logger.info("Discovering jobs... %d sources", len(api_clients))
+        logger.debug("Discovering jobs for titles=%s, location=%s", for_titles, location)
 
         preferences = SearchPreferences(
             titles=for_titles,
@@ -124,30 +132,22 @@ async def execute_pipeline() -> None:
             api_clients=api_clients,
             rate_limiter=rate_limiter,
         )
+        raw_count = len(postings)
 
 
         selected_seniority = {s.lower() for s in prefs_data.get("seniority", [])}
 
         if selected_seniority:
-            seniority_keywords = {
-                "stagiaire": ["stagiaire", "intern", "stage"],
-                "alternant": ["alternant", "alternance", "apprenti"],
-                "junior": ["junior", "jr"],
-                "mid": ["mid", "intermédiaire", "confirmé"],
-                "senior": ["senior", "sr", "expérimenté", "experienced"],
-                "lead": ["lead", "principal", "staff", "head"],
-            }
-
             # Build excluded keywords from seniority levels NOT selected
             excluded_keywords = set()
-            for level, keywords in seniority_keywords.items():
+            for level, keywords in SENIORITY_KEYWORDS.items():
                 if level not in selected_seniority:
                     excluded_keywords.update(keywords)
 
             import re as _re
 
             # Build word-boundary patterns to prevent false positives
-            # e.g., "sr" must not match "SRE" or "Israel"
+            # e.g., "sr" must not match "SRE" or "Sri Lanka"
             excluded_patterns = [
                 _re.compile(r'\b' + _re.escape(kw) + r'\b', _re.IGNORECASE)
                 for kw in excluded_keywords
@@ -161,26 +161,30 @@ async def execute_pipeline() -> None:
                 filtered.append(p)
 
             postings = filtered
-            logger.info("Filtered to %d jobs after seniority filter", len(postings))
+            logger.debug("Filtered to %d jobs after seniority filter", len(postings))
+
+        # Pre-process: detect apprenticeship hidden inside "CDD" contracts.
+        # France Travail uses "CDD - 12 Mois / Contrat apprentissage" which
+        # is actually alternance, not a standard CDD.
+        for i, p in enumerate(postings):
+            contract_str = (p.contract_type or "").lower()
+            description_start = (p.description_text or "")[:300].lower()
+
+            # If contract contains both CDD and apprenticeship terms,
+            # reclassify as alternance
+            if "cdd" in contract_str and any(kw in contract_str or kw in description_start for kw in ALTERNANCE_KEYWORDS):
+                postings[i] = p.model_copy(update={"contract_type": "alternance_apprentissage"})
+                logger.debug("Reclassified %s from CDD to alternance (apprentissage detected)", p.id)
 
         # Filter by contract type if user selected specific types
         selected_contracts = prefs_data.get("contract_types", [])
         if selected_contracts:
-            contract_keywords = {
-                "CDI": ["cdi", "permanent", "full-time", "full time", "unbefristet"],
-                "CDD": ["cdd", "fixed-term", "fixed term", "contract", "temporary"],
-                "stage": ["stage", "internship", "intern", "stagiaire"],
-                "alternance_apprentissage": ["alternance", "apprentissage", "apprenti", "work-study"],
-                "alternance_professionnalisation": ["alternance", "professionnalisation"],
-                "freelance": ["freelance", "contractor", "independent", "indépendant"],
-            }
-
             # Build allowed keywords from selected contract types
             allowed_keywords = set()
             for ct in selected_contracts:
                 ct_lower = ct.lower()
-                if ct_lower in contract_keywords:
-                    allowed_keywords.update(contract_keywords[ct_lower])
+                if ct_lower in CONTRACT_KEYWORDS:
+                    allowed_keywords.update(CONTRACT_KEYWORDS[ct_lower])
 
             if allowed_keywords:
                 before_count = len(postings)
@@ -194,24 +198,79 @@ async def execute_pipeline() -> None:
                         filtered_by_contract.append(p)
                         continue
 
-                    # If no contract type set AND title/description doesn't contain excluded types, keep it
-                    excluded_types = set()
-                    for ct, kws in contract_keywords.items():
-                        if ct.lower() not in [c.lower() for c in selected_contracts]:
-                            excluded_types.update(kws)
+                    # Detect contract type from the title for untagged postings.
+                    # Signals are bare keywords -- no parentheses -- so they match
+                    # any title format (e.g. '(Internship)', '- Internship', 'Internship').
+                    title_contract_detected = None
+                    for contract_type_key, signals in TITLE_CONTRACT_SIGNALS.items():
+                        if any(signal in title_lower for signal in signals):
+                            title_contract_detected = contract_type_key
+                            break
 
-                    if not any(kw in title_lower for kw in excluded_types):
-                        filtered_by_contract.append(p)
-                        continue
+                    if title_contract_detected:
+                        selected_lower = [c.lower() for c in selected_contracts]
+                        if title_contract_detected not in selected_lower:
+                            continue  # Skip -- contract type not selected by user
+                        else:
+                            filtered_by_contract.append(p)
+                            continue  # Explicitly selected -- accept and move on
+
+                    # No contract signal detected in title -- keep (benefit of the doubt)
+                    filtered_by_contract.append(p)
 
                 postings = filtered_by_contract
-                logger.info("Contract filter: %d → %d postings", before_count, len(postings))
+                logger.debug("Contract filter: %d → %d postings", before_count, len(postings))
 
         if not postings:
             app_state["pipeline_status"] = "complete"
             app_state["pipeline_results"] = []
             app_state["last_run"] = datetime.now(tz=timezone.utc).isoformat()
             return
+
+        # Pre-filter
+        search_titles_lower = [t.lower() for t in prefs_data.get("titles", [])]
+
+        # Build relevance keywords from user's search titles
+        relevance_keywords = set()
+        for title in search_titles_lower:
+            relevance_keywords.update(title.split())
+            relevance_keywords.add(title.replace(" ", "-"))
+            relevance_keywords.add(title)
+
+        stopwords = {"de", "du", "le", "la", "les", "the", "a", "an", "and", "et", "en", "in", "of", "-", "–"}
+        relevance_keywords -= stopwords
+
+        pre_filter_before = len(postings)
+        relevant_postings = []
+        skipped_postings = []
+
+        for p in postings:
+            title_lower = p.title.lower()
+            title_words = set(title_lower.replace("-", " ").split())
+
+            overlap = title_words & relevance_keywords
+
+            if overlap:
+                relevant_postings.append(p)
+            elif p.description_text and any(kw in p.description_text.lower() for kw in search_titles_lower):
+                relevant_postings.append(p)
+            else:
+                skipped_postings.append(p)
+
+        postings = relevant_postings
+        logger.debug(
+            "Title pre-filter: %d → %d postings (skipped %d irrelevant, saved ~%d API calls)",
+            pre_filter_before, len(postings), len(skipped_postings), len(skipped_postings)
+        )
+
+        # Cap JD parsing to keep pipeline under 5 minutes
+        max_parse = settings.max_jd_parse
+        if len(postings) > max_parse:
+            logger.debug("Capping JD parsing at %d (had %d)", max_parse, len(postings))
+            postings = postings[:max_parse]
+
+        logger.info("Found %d jobs → %d after filtering", raw_count, len(postings))
+        logger.info("Parsing job descriptions... %d jobs", len(postings))
 
         app_state["pipeline_step"] = 3
         gemini_service = GeminiLLMService(api_key=settings.gemini_api_key)
@@ -235,24 +294,29 @@ async def execute_pipeline() -> None:
                 })
 
                 parsed_jds[posting.id] = parsed_jd
-                # Save incrementally — don't lose completed work on failure
+                # save incrementally to avoid losing work on failure
                 app_state["parsed_jds"] = parsed_jds
                 save_pipeline_data()
             except GeminiAPIError as e:
                 logger.warning("Failed to parse JD for %s: %s", posting.id, e)
                 continue
 
-        logger.info("Parsed %d/%d job descriptions", len(parsed_jds), len(postings))
+        logger.debug("Parsed %d/%d job descriptions", len(parsed_jds), len(postings))
 
         # Patch missing company names from parsed JD data
         for posting in postings:
             if not posting.company or posting.company.strip() == "":
                 parsed = parsed_jds.get(posting.id)
                 if parsed and parsed.company:
-                    # RawJobPosting is frozen — create a copy with the company patched
+                    # create copy to patch company on frozen model
                     idx = postings.index(posting)
                     postings[idx] = posting.model_copy(update={"company": parsed.company})
-                    logger.info("Patched company name for %s from JD: %s", posting.id, parsed.company)
+                    logger.debug("Patched company name for %s from JD: %s", posting.id, parsed.company)
+
+        # label postings with no company name
+        for i, posting in enumerate(postings):
+            if not posting.company or posting.company.strip() == "":
+                postings[i] = posting.model_copy(update={"company": "__MISSING_COMPANY__"})
 
         app_state["pipeline_step"] = 4
         resume = app_state["resume_profile"]
@@ -276,13 +340,14 @@ async def execute_pipeline() -> None:
                 logger.warning("Failed to score %s: %s", posting.id, e)
                 continue
 
-        logger.info("Scored %d/%d jobs", len(match_results), len(postings))
+        logger.info("Scoring matches... %d scored", len(match_results))
 
         app_state["pipeline_step"] = 5
         threshold = settings.match_threshold
         language = prefs_data.get("language", "fr")
 
         above_count = sum(1 for m in match_results.values() if m.overall_score >= threshold)
+        logger.info("Running ATF analysis... %d above threshold", above_count)
         processed = 0
 
         for posting in postings:
@@ -309,7 +374,12 @@ async def execute_pipeline() -> None:
         app_state["pipeline_status"] = "complete"
         app_state["last_run"] = datetime.now(tz=timezone.utc).isoformat()
         save_pipeline_data()
-        logger.info("Pipeline complete: %d postings, %d scored", len(postings), len(match_results))
+
+        import time
+        duration = int(time.time() - app_state["pipeline_start_time"]) if "pipeline_start_time" in app_state else 0
+        minutes = duration // 60
+        seconds = duration % 60
+        logger.info("Pipeline complete — %d jobs in %dm %ds", len(postings), minutes, seconds)
 
     except (GeminiAPIError, ValueError, TypeError) as e:
         app_state["pipeline_status"] = "error"

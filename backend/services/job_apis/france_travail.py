@@ -4,7 +4,6 @@ import logging
 from typing import Any
 
 import aiohttp
-import ssl
 
 from backend.models.job import RawJobPosting
 from backend.models.preferences import SearchPreferences
@@ -12,11 +11,13 @@ from backend.utils.dedup import generate_posting_id
 
 from .base import BaseJobAPIClient
 from backend.services.rate_limiter import AsyncRateLimiter
+from backend.utils.constants import CITY_INSEE_CODES
 
 logger = logging.getLogger(__name__)
 
 _AUTH_URL = "https://entreprise.francetravail.fr/connexion/oauth2/access_token?realm=/partenaire"
 _SEARCH_URL = "https://api.francetravail.io/partenaire/offresdemploi/v2/offres/search"
+
 
 class FranceTravailClient(BaseJobAPIClient):
 
@@ -89,20 +90,27 @@ class FranceTravailClient(BaseJobAPIClient):
                 headers = {"Authorization": f"Bearer {self.access_token}"}
                 params: dict[str, str] = {}
 
-                titles_str = " ".join(preferences.titles) if getattr(preferences, "titles", None) else ""
-                location_city = preferences.location.split(",")[0].strip() if getattr(preferences, "location", None) else ""
-                mots_cles = f"{titles_str} {location_city}".strip()
-                if mots_cles:
-                    params["motsCles"] = mots_cles
+                if getattr(preferences, "titles", None):
+                    params["motsCles"] = " ".join(preferences.titles)
+
+                if getattr(preferences, "location", None):
+                    city = preferences.location.split(",")[0].strip().lower()
+                    insee_code = CITY_INSEE_CODES.get(city)
+                    if insee_code:
+                        # Use INSEE commune code so distance filtering is respected
+                        params["commune"] = insee_code
+                    else:
+                        # Fallback: append city name to keyword search (distance ignored)
+                        params["motsCles"] = f"{params.get('motsCles', '')} {city}".strip()
 
                 if getattr(preferences, "radius_km", None):
-                    params["distance"] = str(preferences.radius_km)
+                    params["distance"] = str(int(preferences.radius_km))
 
-                logger.info("FranceTravail search params: %s", params)
+                logger.debug("FranceTravail search params: %s", params)
 
                 await self._rate_limiter.acquire()
                 async with session.get(_SEARCH_URL, headers=headers, params=params) as response:
-                    if response.status != 200:
+                    if response.status not in (200, 206):
                         body = await response.text()
                         logger.warning(
                             "France Travail search HTTP %d — body: %.500s", response.status, body

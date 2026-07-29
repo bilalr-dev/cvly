@@ -53,7 +53,7 @@ class JSearchClient(BaseJobAPIClient):
                     "page": "1",
                     "num_pages": "1"
                 }
-                logger.info(f"JSearch params: {params}")
+                logger.debug(f"JSearch params: {params}")
 
                 async with session.get(_SEARCH_URL, headers=headers, params=params) as response:
                     data = await response.json()

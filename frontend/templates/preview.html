@@ -7,7 +7,11 @@
 <div class="flex items-start justify-between mb-2 flex-wrap gap-3">
     <div>
         <h1 class="text-2xl font-bold">{{ job.title }}</h1>
+        {% if job.company == '__MISSING_COMPANY__' %}
+        <div class="text-base font-medium text-slate-400 italic mt-1">{{ t.get("company_not_specified", "Entreprise non précisée") }}</div>
+        {% else %}
         <div class="text-base text-slate-500 mt-1">{{ job.company }}</div>
+        {% endif %}
     </div>
     <span class="px-3 py-1 rounded-full text-sm font-bold text-white
         {% if job.score >= 80 %}bg-score-high{% elif job.score >= 60 %}bg-score-medium{% elif job.score >= 40 %}bg-score-low{% else %}bg-score-poor{% endif %}">

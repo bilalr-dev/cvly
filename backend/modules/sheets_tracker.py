@@ -51,7 +51,7 @@ class SheetsTracker:
             self.sheet_id = spreadsheet.id
 
         self.worksheet = spreadsheet.get_worksheet(0)
-        logger.info(f"Connected to Google Sheet: {self.sheet_id}")
+        logger.debug(f"Connected to Google Sheet: {self.sheet_id}")
 
     def setup_headers(self, language: str = "fr") -> None:
         if self.worksheet is None:
@@ -108,4 +108,4 @@ class SheetsTracker:
         ]
 
         self.worksheet.append_row(row_data)
-        logger.info(f"Appended job row: {company} - {title}")
+        logger.debug(f"Appended job row: {company} - {title}")

@@ -118,7 +118,6 @@ TRANSLATIONS = {
         "recommendation_label": "Recommandation",
 
         "hallucination_section_title": "Points à vérifier",
-        "back_to_results": "Retour aux résultats",
         "edit_cover_letter": "Modifier",
         "unfillable": "Mots-clés non intégrables :",
         "error_tailoring": "Échec de la personnalisation. Veuillez réessayer.",
@@ -139,10 +138,10 @@ TRANSLATIONS = {
         "col_status": "Statut",
         "status_saved": "Sauvegardé",
         "status_pending": "À traiter",
-        "filter_btn": "Filtrer",
         "filter_min_score": "Score minimum",
         "filter_status": "Statut",
         "filter_all": "Tous",
+        "company_not_specified": "Entreprise non précisée",
     },
     "en": {
         "nav_dashboard": "Dashboard",
@@ -245,7 +244,6 @@ TRANSLATIONS = {
         "recommendation_label": "Recommendation",
 
         "hallucination_section_title": "Points to review",
-        "back_to_results": "Back to results",
         "edit_cover_letter": "Edit",
         "unfillable": "Keywords that could not be incorporated:",
         "error_tailoring": "Tailoring failed. Please try again.",
@@ -266,10 +264,10 @@ TRANSLATIONS = {
         "col_status": "Status",
         "status_saved": "Saved",
         "status_pending": "Pending",
-        "filter_btn": "Filter",
         "filter_min_score": "Minimum score",
         "filter_status": "Status",
         "filter_all": "All",
+        "company_not_specified": "Company not specified",
     },
 }
 
@@ -351,28 +349,24 @@ def save_pipeline_data() -> None:
     """Save pipeline results, match results, and parsed JDs to disk."""
     _STATE_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Save postings
     postings = app_state.get("pipeline_results", [])
     _PIPELINE_RESULTS_FILE.write_text(
         json.dumps([p.model_dump() for p in postings], ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
-    # Save match results
     matches = app_state.get("match_results", {})
     _MATCH_RESULTS_FILE.write_text(
         json.dumps({k: v.model_dump() for k, v in matches.items()}, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
-    # Save parsed JDs
     jds = app_state.get("parsed_jds", {})
     _PARSED_JDS_FILE.write_text(
         json.dumps({k: v.model_dump() for k, v in jds.items()}, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
-    # Save meta (last_run, status, duration, error)
     meta = {
         "last_run": app_state.get("last_run"),
         "pipeline_status": app_state.get("pipeline_status", "idle"),
@@ -416,7 +410,6 @@ def load_pipeline_data() -> None:
             meta = json.loads(_PIPELINE_META_FILE.read_text(encoding="utf-8"))
             app_state["last_run"] = meta.get("last_run")
             status = meta.get("pipeline_status", "idle")
-            # Don't restore "running" — it means the server crashed mid-pipeline
             app_state["pipeline_status"] = "complete" if status == "running" else status
             app_state["pipeline_duration"] = meta.get("pipeline_duration")
             app_state["pipeline_error"] = meta.get("pipeline_error")

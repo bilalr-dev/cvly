@@ -1,4 +1,4 @@
-"""Evaluator agent — generator-critic QA gate for tailored CV output.
+"""Evaluator agent: generator-critic QA gate for tailored CV output.
 
 Compares original resume bullets against rewritten versions to detect
 fabricated content. Uses a separate LLM call as an independent critic.
@@ -65,9 +65,9 @@ async def evaluate_tailored_output(
         verdict = gemini_service.generate_json(
             prompt=prompt,
             response_schema=EvaluatorVerdict,
-            temperature=0.0,  # Deterministic — strict factual comparison
+            temperature=0.0,  # strict factual comparison
         )
-        logger.info(
+        logger.debug(
             "Evaluator verdict: %s — %d violations found",
             "ACCEPT" if verdict.is_acceptable else "REJECT",
             len(verdict.violations),

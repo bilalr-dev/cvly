@@ -24,5 +24,6 @@ class AppSettings(BaseSettings):
     default_language: str = "fr"
     google_service_account_path: str = "config/google_service_account.json"
     match_threshold: int = 50
+    max_jd_parse: int = 40
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")

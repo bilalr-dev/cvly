@@ -94,7 +94,7 @@ async def get_results(request: Request) -> HTMLResponse:
 
     jobs_display.sort(key=lambda j: j["score"], reverse=True)
 
-    logger.info("Accessing results page")
+    logger.debug("Accessing results page")
     last_approved = app_state.pop("last_approved", None)
     return templates.TemplateResponse(request=request, name="results.html", context={
         "request": request,
@@ -114,7 +114,7 @@ async def get_job_partial(request: Request, job_id: str) -> HTMLResponse:
         logger.warning("Job details not found for ID: %s", job_id)
         raise HTTPException(status_code=404, detail="Job not found")
 
-    logger.info("Serving job detail partial for ID: %s", job_id)
+    logger.debug("Serving job detail partial for ID: %s", job_id)
     return templates.TemplateResponse(request=request, name="partials/job_detail.html", context={
         "request": request,
         "job": job,

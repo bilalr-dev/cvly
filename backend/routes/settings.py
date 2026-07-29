@@ -74,7 +74,7 @@ def _build_resume_summary(profile: Any) -> dict:
 
 @router.get("", response_class=HTMLResponse)
 async def get_settings(request: Request) -> HTMLResponse:
-    logger.info("Settings page accessed")
+    logger.debug("Settings page accessed")
 
     resume_summary = None
     profile = app_state.get("resume_profile")
@@ -112,7 +112,7 @@ async def upload_resume(file: UploadFile, request: Request) -> Any:
         profile = parser.parse_resume(str(temp_path))
         app_state["resume_profile"] = profile
         save_resume_profile(profile)
-        logger.info("Resume parsed successfully for %s", file.filename)
+        logger.debug("Resume parsed successfully for %s", file.filename)
 
         resume_summary = _build_resume_summary(profile)
 
@@ -203,7 +203,7 @@ async def post_save_preferences(request: Request) -> Any:
 
     app_state["preferences"] = data
     save_preferences(data)
-    logger.info("Preferences saved")
+    logger.debug("Preferences saved")
 
     t = get_translations()
     return HTMLResponse(

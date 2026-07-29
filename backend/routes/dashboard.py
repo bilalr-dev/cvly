@@ -46,7 +46,7 @@ async def get_dashboard(request: Request) -> HTMLResponse:
     else:
         pipeline_duration_str = ""
 
-    logger.info("Dashboard accessed. Showing %d jobs.", jobs_count)
+    logger.debug("Dashboard accessed. Showing %d jobs.", jobs_count)
     return templates.TemplateResponse(request=request, name="dashboard.html", context={
         "request": request,
         "last_run": last_run_display,

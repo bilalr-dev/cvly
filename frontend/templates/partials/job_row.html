@@ -1,6 +1,10 @@
 <tr id="row-{{ job.id }}" class="border-b border-slate-100 hover:bg-slate-50 transition-colors group" data-score="{{ job.score }}" data-saved="{{ 'true' if job.id in approved_jobs else 'false' }}">
     <td class="p-4">
+        {% if job.company == '__MISSING_COMPANY__' %}
+        <span class="font-medium text-slate-400 italic">{{ t.get("company_not_specified", "Entreprise non précisée") }}</span>
+        {% else %}
         <span class="font-semibold text-slate-800">{{ job.company }}</span>
+        {% endif %}
     </td>
     <td class="p-4 text-slate-700">{{ job.title }}</td>
     <td class="p-4">
