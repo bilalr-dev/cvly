@@ -6,44 +6,15 @@ from typing import Any
 
 import markdown as md_lib
 
-_ACADEMIC_KEYWORDS: frozenset[str] = frozenset([
-    "professor", "researcher", "postdoc", "faculty",
-    "chercheur", "enseignant-chercheur", "maître de conférences"
-])
-
-_SECTION_HEADINGS = {
-    "fr": {
-        "skills": "Compétences",
-        "skills_technical": "Compétences techniques",
-        "skills_soft": "Soft Skills",
-        "certifications": "Certifications",
-        "experience": "Expérience professionnelle",
-        "education": "Éducation",
-        "projects": "Projets académiques",
-        "associations": "Associations",
-        "languages": "Langues",
-    },
-    "en": {
-        "skills": "Skills",
-        "skills_technical": "Technical Skills",
-        "skills_soft": "Soft Skills",
-        "certifications": "Certifications",
-        "experience": "Professional Experience",
-        "education": "Education",
-        "projects": "Academic Projects",
-        "associations": "Associations",
-        "languages": "Languages",
-    },
-}
-
-# Type suffixes that may already appear in resume titles (both languages)
-_TYPE_SUFFIXES = [
-    "(Internship)", "(Stage)", "(Alternance)", "(Volunteer)",
-    "(Bénévolat)", "(Freelance)",
-    "(internship)", "(stage)", "(alternance)", "(volunteer)",
-    "(bénévolat)", "(freelance)",
-]
-
+from backend.utils.constants import (
+    MAX_BULLETS_PER_ROLE,
+    MAX_ROLES_LIMIT,
+    ACADEMIC_KEYWORDS as _ACADEMIC_KEYWORDS,
+    SECTION_HEADINGS as _SECTION_HEADINGS,
+    TYPE_SUFFIXES as _TYPE_SUFFIXES,
+    LANG_NAMES_EN_TO_FR as _LANG_NAMES_EN_TO_FR,
+    PROFICIENCY_EN_TO_FR as _PROFICIENCY_EN_TO_FR,
+)
 
 def _strip_type_suffix(title: str) -> str:
     """Remove existing type suffixes from a job title to prevent duplication."""
@@ -51,35 +22,6 @@ def _strip_type_suffix(title: str) -> str:
     for suffix in _TYPE_SUFFIXES:
         cleaned = cleaned.replace(suffix, "")
     return cleaned.strip()
-
-
-# Deterministic language name translations (EN → FR)
-_LANG_NAMES_EN_TO_FR: dict[str, str] = {
-    "arabic": "Arabe", "chinese": "Chinois", "dutch": "Néerlandais",
-    "english": "Anglais", "french": "Français", "german": "Allemand",
-    "hindi": "Hindi", "italian": "Italien", "japanese": "Japonais",
-    "korean": "Coréen", "portuguese": "Portugais", "russian": "Russe",
-    "spanish": "Espagnol", "turkish": "Turc", "ukrainian": "Ukrainien",
-    "polish": "Polonais", "romanian": "Roumain", "swedish": "Suédois",
-    "danish": "Danois", "norwegian": "Norvégien", "finnish": "Finnois",
-    "greek": "Grec", "hebrew": "Hébreu", "persian": "Persan",
-    "thai": "Thaï", "vietnamese": "Vietnamien", "czech": "Tchèque",
-    "hungarian": "Hongrois", "bengali": "Bengali", "malay": "Malais",
-    "indonesian": "Indonésien", "tagalog": "Tagalog",
-}
-
-# Deterministic proficiency level translations (EN → FR)
-# CEFR codes (A1, A2, B1, B2, C1, C2) are NOT translated — they stay as-is
-_PROFICIENCY_EN_TO_FR: dict[str, str] = {
-    "native": "Natif", "bilingual": "Bilingue", "fluent": "Courant",
-    "advanced": "Avancé", "intermediate": "Intermédiaire",
-    "beginner": "Débutant", "elementary": "Élémentaire",
-    "professional": "Professionnel",
-    "native or bilingual": "Natif ou bilingue",
-    "full professional": "Courant professionnel",
-    "limited working": "Niveau professionnel limité",
-}
-
 
 _FILENAME_SANITIZE_PATTERN = re.compile(r'[^\w]')
 
@@ -204,8 +146,8 @@ def generate_resume_markdown_raw(resume: Any, tailored: Any, jd: Any, language: 
             return
         md.append("")
         md.append(f"## {lang_map['experience']}")
-        roles_limit = 999
-        bull_limit = 999 if ext else 4
+        roles_limit = MAX_ROLES_LIMIT
+        bull_limit = MAX_ROLES_LIMIT if ext else MAX_BULLETS_PER_ROLE
         for exp in exp_list[:roles_limit]:
             title = _strip_type_suffix(getattr(exp, "title", ""))
             company = getattr(exp, "company", "")

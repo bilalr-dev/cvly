@@ -312,8 +312,7 @@ STRUCTURE (3 paragraphs, approximately 200–300 words total):
 
 LANGUAGE AND REGISTER:
 - Write entirely in {language}.
-- For French: use professional vouvoiement throughout ("Madame, Monsieur," / "Je vous prie d'agréer, Madame, Monsieur, l'expression de mes salutations distinguées.").
-- For English: professional register ("Dear Hiring Manager," / "Sincerely,").
+{language_conventions}
 
 TARGET COMPANY: {target_company}
 TARGET ROLE: {target_title}

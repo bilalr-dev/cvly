@@ -12,14 +12,10 @@ import re
 from typing import Any
 
 from backend.models import HallucinationWarning
-
-_COMMON_WORDS: frozenset[str] = frozenset([
-    "the", "and", "or", "for", "with", "from", "to", "in", "on", "at",
-    "by", "a", "an", "is", "of", "le", "la", "les", "des", "pour",
-    "avec", "dans", "et", "ou", "en", "sur", "au", "aux"
-])
-
-_SHORT_TECH_NAMES = frozenset(["go", "r", "c", "c#", "c++", "ai", "ml", "qa", "ux", "ui", "ci", "cd", "js", "ts"])
+from backend.utils.constants import (
+    HALLUCINATION_COMMON_WORDS as _COMMON_WORDS,
+    HALLUCINATION_SHORT_TECH_NAMES as _SHORT_TECH_NAMES,
+)
 
 _TECH_PATTERN = re.compile(r'[\.0-9]|[a-z][A-Z]')
 

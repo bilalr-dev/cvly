@@ -1,12 +1,19 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from .resume import ProfileType
+from backend.utils.constants import SUPPORTED_SENIORITY_LEVELS
 
+# Type alias kept here as a static Literal for Pydantic/mypy compatibility.
+# The canonical string values live in backend/utils/constants.py.
 SeniorityLevel = Literal["alternant", "intermédiaire", "junior", "lead", "mid", "senior", "stagiaire"]
+
+assert set(get_args(SeniorityLevel)) == set(SUPPORTED_SENIORITY_LEVELS), (
+    "SeniorityLevel Literal and SUPPORTED_SENIORITY_LEVELS are out of sync — update both together"
+)
 
 
 class ATFAnalysis(BaseModel):
