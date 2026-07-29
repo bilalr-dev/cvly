@@ -4,11 +4,14 @@ from typing import Any
 
 import aiohttp
 
+import logging
 from backend.models.job import RawJobPosting
 from backend.models.preferences import SearchPreferences
 from backend.utils.dedup import generate_posting_id
 
 from .base import BaseJobAPIClient
+
+logger = logging.getLogger(__name__)
 
 _SEARCH_URL = "https://www.googleapis.com/customsearch/v1"
 
@@ -41,6 +44,11 @@ class GoogleCSEClient(BaseJobAPIClient):
                     "key": self.api_key,
                     "cx": self.cse_id
                 }
+
+                query = " ".join(preferences.titles) if getattr(preferences, "titles", None) else "Developer"
+                if getattr(preferences, "location", None):
+                    query += f" {preferences.location}"
+                params["q"] = query.strip()
 
                 async with session.get(_SEARCH_URL, params=params) as response:
                     data = await response.json()

@@ -425,8 +425,19 @@ async def approve_job(request: Request, job_id: str) -> RedirectResponse:
     job = get_job_data(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+
+    # Mark as approved in app state
+    approved = app_state.setdefault("approved_jobs", set())
+    approved.add(job_id)
+
+    # Store approval info for the results page flash message
+    app_state["last_approved"] = {
+        "title": job["title"],
+        "company": job["company"],
+    }
+
     logger.info("Job approved: %s at %s", job["title"], job["company"])
-    # TODO: wire up sheets_tracker.append_job and output_generator
+    # TODO: wire up sheets_tracker.append_job and file output (Milestone #1)
     return RedirectResponse(url="/results", status_code=302)
 
 

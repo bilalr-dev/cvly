@@ -18,6 +18,7 @@ async def generate_cover_letter(
 ) -> str:
 
     summary = getattr(resume, "summary", "No summary provided")
+    candidate_name = getattr(resume, "full_name", None) or getattr(resume, "name", None) or "N/A"
     achievements = []
 
     exps = getattr(resume, "experience", [])
@@ -67,6 +68,7 @@ async def generate_cover_letter(
         .replace("{strengths}", "N/A" if not strengths else " ".join([str(s) for s in strengths]))
         .replace("{target_company}", str(getattr(jd, "company", "") or ""))
         .replace("{target_title}", str(getattr(jd, "title", "") or ""))
+        .replace("{candidate_name}", str(candidate_name))
     )
 
     return gemini_service.generate_text(prompt, temperature=0.3)  # Reduced from 0.5 — prevents content fabrication in cover letters

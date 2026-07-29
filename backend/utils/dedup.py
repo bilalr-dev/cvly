@@ -39,10 +39,18 @@ def deduplicate_postings(postings: list[RawJobPosting]) -> list[RawJobPosting]:
     if not postings:
         return []
 
-    seen: dict[tuple[str, str, str], RawJobPosting] = {}
+    seen: dict[tuple, RawJobPosting] = {}
     for p in postings:
         city = _extract_city(getattr(p, "location", ""))
-        key = (normalize_company(p.company), normalize_title(p.title), city)
+        norm_company = normalize_company(p.company)
+        norm_title = normalize_title(p.title)
+
+        # Prevent collapsing when source provides no company/location metadata
+        if not norm_company.strip() and not city.strip():
+            # Use URL or ID as unique fallback key
+            key = (p.url or p.id,)
+        else:
+            key = (norm_company, norm_title, city)
 
         if key in seen:
             existing = seen[key]

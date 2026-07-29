@@ -43,6 +43,7 @@ class AdzunaClient(BaseJobAPIClient):
                 params = {
                     "app_id": self.app_id,
                     "app_key": self.app_key,
+                    "results_per_page": "20",
                 }
 
                 if getattr(preferences, "titles", None):

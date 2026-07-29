@@ -1,14 +1,77 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <div class="flex items-center justify-between mb-6">
-        <h2 class="text-2xl font-bold">{{ t.results_title }}</h2>
-        <div class="flex items-center gap-2">
-            <button class="px-3 py-1.5 text-sm font-medium border border-slate-200 bg-white rounded flex items-center gap-2 hover:bg-slate-50 transition-colors">
-                <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg>
-                {{ t.filter_btn }}
-            </button>
+    {% if last_approved %}
+    <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6 text-sm text-green-800">
+        ✓ {{ t.get("job_approved_msg", "Candidature approuvée") }} — <strong>{{ last_approved.title }}</strong> @ {{ last_approved.company }}
+    </div>
+    {% endif %}
+
+    <style>
+        .filter-pill {
+            background: white;
+            border-color: #cbd5e1;
+            color: #64748b;
+        }
+        .filter-pill:hover {
+            border-color: #818cf8;
+            color: #4f46e5;
+        }
+        .filter-pill.active {
+            background: #eef2ff;
+            border-color: #818cf8;
+            color: #4338ca;
+            font-weight: 500;
+        }
+    </style>
+
+    <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-3">
+            <h2 class="text-2xl font-bold">{{ t.results_title }}</h2>
+            <span id="filter-count" class="text-sm text-slate-400"></span>
         </div>
+    </div>
+
+    <!-- Filter bar — always visible, right below the heading -->
+    <div class="flex flex-wrap items-center gap-3 mb-6 text-sm">
+        <!-- Score filter pills -->
+        <span class="text-slate-500 font-medium mr-1">{{ t.get("filter_min_score", "Score minimum") }} :</span>
+
+        <button onclick="setScoreFilter(0, this)" data-filter="score"
+            class="filter-pill active px-3 py-1 rounded-full border cursor-pointer transition-colors">
+            {{ t.get("filter_all", "Tous") }}
+        </button>
+        <button onclick="setScoreFilter(40, this)" data-filter="score"
+            class="filter-pill px-3 py-1 rounded-full border cursor-pointer transition-colors">
+            40%+
+        </button>
+        <button onclick="setScoreFilter(60, this)" data-filter="score"
+            class="filter-pill px-3 py-1 rounded-full border cursor-pointer transition-colors">
+            60%+
+        </button>
+        <button onclick="setScoreFilter(80, this)" data-filter="score"
+            class="filter-pill px-3 py-1 rounded-full border cursor-pointer transition-colors">
+            80%+
+        </button>
+
+        <!-- Vertical divider -->
+        <span class="w-px h-5 bg-slate-300 mx-1"></span>
+
+        <!-- Status filter pills -->
+        <span class="text-slate-500 font-medium mr-1">{{ t.get("filter_status", "Statut") }} :</span>
+
+        <button onclick="setStatusFilter('all', this)" data-filter="status"
+            class="filter-pill active px-3 py-1 rounded-full border cursor-pointer transition-colors">
+            {{ t.get("filter_all", "Tous") }}
+        </button>
+        <button onclick="setStatusFilter('saved', this)" data-filter="status"
+            class="filter-pill px-3 py-1 rounded-full border cursor-pointer transition-colors">
+            ✓ {{ t.get("status_saved", "Sauvegardé") }}
+        </button>
+        <button onclick="setStatusFilter('pending', this)" data-filter="status"
+            class="filter-pill px-3 py-1 rounded-full border cursor-pointer transition-colors">
+            {{ t.get("status_pending", "À traiter") }}
+        </button>
     </div>
 
     {% if not pipeline_run %}
@@ -39,6 +102,7 @@
                     <th class="p-4 font-semibold">Match</th>
                     <th class="p-4 font-semibold">{{ t.col_location }}</th>
                     <th class="p-4 font-semibold">{{ t.col_contract }}</th>
+                    <th class="p-4 font-semibold">{{ t.get("col_status", "Statut") }}</th>
                     <th class="p-4 font-semibold">{{ t.col_actions }}</th>
                 </tr>
             </thead>
@@ -50,4 +114,61 @@
         </table>
     </div>
     {% endif %}
+
+<script>
+let currentMinScore = 0;
+let currentStatus = 'all';
+
+function setScoreFilter(min, el) {
+    currentMinScore = min;
+    document.querySelectorAll('[data-filter="score"]').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+    applyFilters();
+}
+
+function setStatusFilter(status, el) {
+    currentStatus = status;
+    document.querySelectorAll('[data-filter="status"]').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+    applyFilters();
+}
+
+function applyFilters() {
+    document.querySelectorAll('tbody tr[data-score]').forEach(row => {
+        const score = parseInt(row.dataset.score || '0');
+        const isSaved = row.dataset.saved === 'true';
+
+        let show = true;
+        if (score < currentMinScore) show = false;
+        if (currentStatus === 'saved' && !isSaved) show = false;
+        if (currentStatus === 'pending' && isSaved) show = false;
+
+        row.style.display = show ? '' : 'none';
+
+        // Also hide/show the corresponding detail row if it's expanded
+        const detailsRowId = row.id ? row.id.replace('row-', 'details-') : '';
+        if (detailsRowId) {
+             const dr = document.getElementById(detailsRowId);
+             if (dr && dr.classList.contains('hidden') === false && !show) {
+                  dr.style.display = 'none';
+             } else if (dr && dr.classList.contains('hidden') === false && show) {
+                  dr.style.display = '';
+             }
+        }
+    });
+
+    // Update visible count
+    const visible = document.querySelectorAll('tbody tr[data-score]:not([style*="display: none"])').length;
+    const total = document.querySelectorAll('tbody tr[data-score]').length;
+    const counter = document.getElementById('filter-count');
+    if (counter) {
+        counter.textContent = visible === total ? '' : visible + ' / ' + total;
+    }
+}
+
+// Initial calculation on page load
+document.addEventListener("DOMContentLoaded", function() {
+    applyFilters();
+});
+</script>
 {% endblock %}

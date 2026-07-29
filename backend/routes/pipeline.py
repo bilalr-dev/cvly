@@ -14,9 +14,10 @@ from backend.modules.job_discovery import JobDiscovery
 from backend.services.gemini_embeddings import GeminiEmbeddingsService
 from backend.services.gemini_llm import GeminiAPIError, GeminiLLMService
 from backend.services.job_apis.adzuna import AdzunaClient
+from backend.services.job_apis.arbeitnow import ArbeitnowClient
 from backend.services.job_apis.france_travail import FranceTravailClient
-from backend.services.job_apis.google_cse import GoogleCSEClient
 from backend.services.job_apis.jsearch import JSearchClient
+from backend.services.job_apis.remotive import RemotiveClient
 from backend.services.rate_limiter import AsyncRateLimiter
 from backend.state import app_state, get_translations, save_pipeline_data, templates
 
@@ -59,14 +60,12 @@ async def execute_pipeline() -> None:
             )
             logger.info("JSearch client configured")
 
-        if settings.google_cse_api_key and settings.google_cse_id:
-            api_clients.append(
-                GoogleCSEClient(
-                    api_key=settings.google_cse_api_key,
-                    cse_id=settings.google_cse_id,
-                )
-            )
-            logger.info("Google CSE client configured")
+        # Free APIs — no credentials required
+        api_clients.append(ArbeitnowClient())
+        logger.info("Arbeitnow client configured (free, no key)")
+
+        api_clients.append(RemotiveClient())
+        logger.info("Remotive client configured (free, no key)")
 
         if not api_clients:
             logger.warning("No job API clients configured — check your .env file")
@@ -94,8 +93,8 @@ async def execute_pipeline() -> None:
         seniorities = prefs_data.get("seniority", [])
         seniority = "junior"
         if seniorities and isinstance(seniorities, list):
-            val = str(seniorities[0]).lower()
-            seniority = val if val in ["stagiaire", "alternant", "junior", "mid", "senior", "lead"] else "junior"
+            valid = [s.lower() for s in seniorities if str(s).lower() in ["stagiaire", "alternant", "junior", "mid", "senior", "lead"]]
+            seniority = valid[0] if valid else "junior"
 
         exclude = prefs_data.get("exclude_keywords")
         exclude_list = []
@@ -125,7 +124,7 @@ async def execute_pipeline() -> None:
             api_clients=api_clients,
             rate_limiter=rate_limiter,
         )
-        logger.info("Discovered %d jobs", len(postings))
+
 
         selected_seniority = {s.lower() for s in prefs_data.get("seniority", [])}
 
@@ -145,16 +144,68 @@ async def execute_pipeline() -> None:
                 if level not in selected_seniority:
                     excluded_keywords.update(keywords)
 
+            import re as _re
+
+            # Build word-boundary patterns to prevent false positives
+            # e.g., "sr" must not match "SRE" or "Israel"
+            excluded_patterns = [
+                _re.compile(r'\b' + _re.escape(kw) + r'\b', _re.IGNORECASE)
+                for kw in excluded_keywords
+            ]
+
             # Filter postings
             filtered = []
             for p in postings:
-                title_lower = p.title.lower()
-                if any(kw in title_lower for kw in excluded_keywords):
+                if any(pat.search(p.title) for pat in excluded_patterns):
                     continue
                 filtered.append(p)
 
             postings = filtered
             logger.info("Filtered to %d jobs after seniority filter", len(postings))
+
+        # Filter by contract type if user selected specific types
+        selected_contracts = prefs_data.get("contract_types", [])
+        if selected_contracts:
+            contract_keywords = {
+                "CDI": ["cdi", "permanent", "full-time", "full time", "unbefristet"],
+                "CDD": ["cdd", "fixed-term", "fixed term", "contract", "temporary"],
+                "stage": ["stage", "internship", "intern", "stagiaire"],
+                "alternance_apprentissage": ["alternance", "apprentissage", "apprenti", "work-study"],
+                "alternance_professionnalisation": ["alternance", "professionnalisation"],
+                "freelance": ["freelance", "contractor", "independent", "indépendant"],
+            }
+
+            # Build allowed keywords from selected contract types
+            allowed_keywords = set()
+            for ct in selected_contracts:
+                ct_lower = ct.lower()
+                if ct_lower in contract_keywords:
+                    allowed_keywords.update(contract_keywords[ct_lower])
+
+            if allowed_keywords:
+                before_count = len(postings)
+                filtered_by_contract = []
+                for p in postings:
+                    title_lower = p.title.lower()
+                    contract_str = (p.contract_type or "").lower()
+
+                    # If the posting has an explicit contract type that matches, keep it
+                    if contract_str and any(kw in contract_str for kw in allowed_keywords):
+                        filtered_by_contract.append(p)
+                        continue
+
+                    # If no contract type set AND title/description doesn't contain excluded types, keep it
+                    excluded_types = set()
+                    for ct, kws in contract_keywords.items():
+                        if ct.lower() not in [c.lower() for c in selected_contracts]:
+                            excluded_types.update(kws)
+
+                    if not any(kw in title_lower for kw in excluded_types):
+                        filtered_by_contract.append(p)
+                        continue
+
+                postings = filtered_by_contract
+                logger.info("Contract filter: %d → %d postings", before_count, len(postings))
 
         if not postings:
             app_state["pipeline_status"] = "complete"
@@ -192,6 +243,16 @@ async def execute_pipeline() -> None:
                 continue
 
         logger.info("Parsed %d/%d job descriptions", len(parsed_jds), len(postings))
+
+        # Patch missing company names from parsed JD data
+        for posting in postings:
+            if not posting.company or posting.company.strip() == "":
+                parsed = parsed_jds.get(posting.id)
+                if parsed and parsed.company:
+                    # RawJobPosting is frozen — create a copy with the company patched
+                    idx = postings.index(posting)
+                    postings[idx] = posting.model_copy(update={"company": parsed.company})
+                    logger.info("Patched company name for %s from JD: %s", posting.id, parsed.company)
 
         app_state["pipeline_step"] = 4
         resume = app_state["resume_profile"]

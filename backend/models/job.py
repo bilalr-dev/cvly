@@ -16,7 +16,7 @@ class RawJobPosting(BaseModel):
     description_text: str
     id: str
     location: str
-    source: Literal["adzuna", "france_travail", "google_cse", "jsearch"]
+    source: Literal["adzuna", "arbeitnow", "france_travail", "google_cse", "jsearch", "remotive"]
     title: str
     url: str
 

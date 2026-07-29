@@ -95,13 +95,16 @@ async def get_results(request: Request) -> HTMLResponse:
     jobs_display.sort(key=lambda j: j["score"], reverse=True)
 
     logger.info("Accessing results page")
+    last_approved = app_state.pop("last_approved", None)
     return templates.TemplateResponse(request=request, name="results.html", context={
         "request": request,
         "pipeline_run": len(postings) > 0,
         "jobs": jobs_display,
+        "last_approved": last_approved,
         "language": app_state.get("language", "fr"),
         "t": t,
-        "active_page": "results"
+        "active_page": "results",
+        "approved_jobs": app_state.get("approved_jobs", set())
     })
 
 @router.get("/job/{job_id}", response_class=HTMLResponse)
@@ -116,5 +119,6 @@ async def get_job_partial(request: Request, job_id: str) -> HTMLResponse:
         "request": request,
         "job": job,
         "language": app_state.get("language", "fr"),
-        "t": get_translations()
+        "t": get_translations(),
+        "approved_jobs": app_state.get("approved_jobs", set())
     })

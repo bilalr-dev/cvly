@@ -308,6 +308,7 @@ STRUCTURE (3 paragraphs, approximately 200–300 words total):
 - Paragraph 1 — HOOK: Open with {target_company}'s priority or business challenge. Do NOT use generic openings like "I am writing to apply for..." or "Ayant pris connaissance de votre offre...".
 - Paragraph 2 — PROOF: Present 2-3 concrete achievements from the candidate's background that directly map to the role's top requirements using real metrics.
 - Paragraph 3 — CLOSE: Express specific curiosity about the company's domain, provide availability details, and close professionally.
+- Sign with the candidate's full name: {candidate_name}. Do NOT use placeholder text like "[Your Name]" or "[Votre nom]".
 
 LANGUAGE AND REGISTER:
 - Write entirely in {language}.

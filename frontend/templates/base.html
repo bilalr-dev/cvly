@@ -259,14 +259,20 @@ async function saveEdits(jobId) {
     if (editBtn) editBtn.textContent = editBtn.dataset.editLabel;
 }
 
-function copyResume() {
+function copyResume(btn) {
     const content = document.getElementById('resume-content');
-    if (content) {
+    btn = btn || event.currentTarget;
+    if (content && btn) {
         navigator.clipboard.writeText(content.innerText).then(() => {
-            const btn = event.target;
-            const original = btn.textContent;
-            btn.textContent = '✓';
-            setTimeout(() => btn.textContent = original, 2000);
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>`;
+            btn.classList.add('text-green-500');
+            btn.classList.remove('text-slate-400', 'hover:text-indigo-600');
+            setTimeout(() => {
+                btn.innerHTML = originalHTML;
+                btn.classList.remove('text-green-500');
+                btn.classList.add('text-slate-400', 'hover:text-indigo-600');
+            }, 2000);
         });
     }
 }

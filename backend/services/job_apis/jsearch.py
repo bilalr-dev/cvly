@@ -45,9 +45,14 @@ class JSearchClient(BaseJobAPIClient):
                 if getattr(preferences, "titles", None):
                     query_parts.append(" ".join(preferences.titles))
                 if getattr(preferences, "location", None):
-                    query_parts.append(f"in {preferences.location}")
+                    loc = preferences.location.split(',')[0].strip()
+                    query_parts.append(f"in {loc}")
 
-                params = {"query": " ".join(query_parts) if query_parts else "developer"}
+                params = {
+                    "query": " ".join(query_parts) if query_parts else "developer",
+                    "page": "1",
+                    "num_pages": "1"
+                }
                 logger.info(f"JSearch params: {params}")
 
                 async with session.get(_SEARCH_URL, headers=headers, params=params) as response:
