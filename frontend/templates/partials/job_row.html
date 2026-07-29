@@ -1,23 +1,44 @@
-<tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors group">
+<tr id="row-{{ job.id }}" class="border-b border-slate-100 hover:bg-slate-50 transition-colors group" data-score="{{ job.score }}" data-saved="{{ 'true' if job.id in approved_jobs else 'false' }}">
     <td class="p-4">
-        <p class="font-bold text-slate-800">{{ job.company }}</p>
+        {% if job.company == '__MISSING_COMPANY__' %}
+        <span class="font-medium text-slate-400 italic">{{ t.get("company_not_specified", "Entreprise non précisée") }}</span>
+        {% else %}
+        <span class="font-semibold text-slate-800">{{ job.company }}</span>
+        {% endif %}
     </td>
     <td class="p-4 text-slate-700">{{ job.title }}</td>
     <td class="p-4">
         {% include "partials/score_badge.html" %}
     </td>
     <td class="p-4 text-slate-600">{{ job.location }}</td>
-    <td class="p-4 text-slate-600">{{ job.contract }}</td>
+    <td class="p-4 text-slate-600">{{ job.contract or t.no_details }}</td>
     <td class="p-4">
-        <div class="flex items-center gap-2 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
-            <button hx-get="/results/job/{{ job.id }}" hx-target="#details-{{ job.id }}" hx-swap="outerHTML" class="text-slate-400 hover:text-indigo-600 p-1.5 rounded bg-white border border-slate-200 shadow-sm hover:shadow" title="Expand View">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+        {% if job.id in approved_jobs %}
+            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                ✓ {{ t.get("status_saved", "Sauvegardé") }}
+            </span>
+        {% else %}
+            <span class="text-sm text-slate-400">
+                {{ t.get("status_pending", "À traiter") }}
+            </span>
+        {% endif %}
+    </td>
+    <td class="p-4">
+        <div class="flex items-center gap-2">
+            <button onclick="toggleJobDetails(this, '{{ job.id }}')"
+                    class="text-slate-400 hover:text-indigo-600 p-1 rounded bg-white border border-slate-200 shadow-sm hover:shadow cursor-pointer transition-transform"
+                    title="{{ t.get('action_expand', 'Voir les détails') }}"
+                    data-expanded="false">
+                <svg class="w-3.5 h-3.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </button>
-            <a href="/preview/{{ job.id }}" class="text-slate-400 hover:text-green-600 p-1.5 rounded bg-white border border-slate-200 shadow-sm hover:shadow" title="Tailor CV">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+            <a href="/preview/{{ job.id }}"
+               class="text-slate-400 hover:text-green-600 p-1 rounded bg-white border border-slate-200 shadow-sm hover:shadow"
+               title="{{ t.get('action_tailor', 'Adapter le CV') }}">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
             </a>
-            <button class="text-slate-400 hover:text-red-600 p-1.5 rounded bg-white border border-slate-200 shadow-sm hover:shadow" title="Skip">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+            <button class="text-slate-400 hover:text-red-600 p-1 rounded bg-white border border-slate-200 shadow-sm hover:shadow cursor-pointer"
+                    title="{{ t.get('action_skip', 'Ignorer') }}">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
             </button>
         </div>
     </td>

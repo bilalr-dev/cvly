@@ -1,59 +1,74 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="max-w-5xl mx-auto space-y-6">
-    <div class="flex items-center justify-between">
-        <h2 class="text-2xl font-bold">Dashboard</h2>
-        {% if last_run %}
-        <span class="text-sm text-slate-500">Last run: {{ last_run }}</span>
-        {% endif %}
-    </div>
-
-    <div class="grid grid-cols-3 gap-6">
-        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
-            <h3 class="text-sm text-slate-500 mb-1">Jobs Found</h3>
+    <div class="grid grid-cols-3 gap-4 mb-5">
+        <div class="bg-white border border-slate-200 rounded-xl p-5">
             <p id="jobs-found-count" class="text-3xl font-bold">{{ jobs_count }}</p>
+            <h3 class="text-sm text-slate-500 mt-1">{{ t.jobs_found }}</h3>
         </div>
 
-        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
-            <h3 class="text-sm text-slate-500 mb-1">Avg Match Score</h3>
+        <div class="bg-white border border-slate-200 rounded-xl p-5">
             <p class="text-3xl font-bold">{{ avg_score }}</p>
+            <h3 class="text-sm text-slate-500 mt-1">{{ t.avg_score }}</h3>
         </div>
 
-        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
-            <h3 class="text-sm text-slate-500 mb-1">Above Threshold (>80)</h3>
+        <div class="bg-white border border-slate-200 rounded-xl p-5">
             <p class="text-3xl font-bold">{{ above_threshold }}</p>
+            <h3 class="text-sm text-slate-500 mt-1">{{ t.above_threshold }}</h3>
         </div>
     </div>
 
-    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-6">
-        <div class="flex items-center justify-between">
-            <div>
-                <h3 class="text-lg font-bold mb-1">Pipeline actions</h3>
-                <p class="text-sm text-slate-500">Run the automated agent to scan and match profiles.</p>
-            </div>
-
-            <div class="flex gap-3">
-                <button
-                    hx-post="/pipeline/run"
-                    hx-target="#pipeline-status"
-                    hx-swap="innerHTML"
-                    class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2">
-                    Run Pipeline
-                </button>
-            </div>
-        </div>
-
-        <div id="pipeline-status" class="pt-4 border-t border-slate-100">
-            <p class="text-sm text-slate-500">Pipeline is idle.</p>
-        </div>
+<div id="pipeline-status">
+  {% if pipeline_status == "running" %}
+    <div class="bg-indigo-50 border border-indigo-200 rounded-xl px-5 py-4 mb-5 text-sm text-indigo-700">
+      {{ t.get("pipeline_running_msg", "Le pipeline est en cours d'exécution. Cette opération peut prendre quelques minutes selon le nombre d'offres trouvées.") }}
     </div>
-
-    <div class="flex justify-start">
-        <a href="#" class="text-sm text-indigo-600 hover:underline flex items-center gap-1">
-            Open Google Sheet Dashboard
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
-        </a>
+    {% include "partials/progress.html" %}
+  {% elif last_run %}
+    <div class="bg-white border border-slate-200 rounded-xl px-5 py-4 mb-5 text-sm text-slate-700">
+      {{ t.get("last_run_prefix", "Dernière exécution :") }}
+      <span id="last-run-time" data-utc="{{ last_run_utc }}"></span>
+      {% if pipeline_duration_str %}
+      <span class="text-slate-500 font-medium ml-1">({{ pipeline_duration_str }})</span>
+      {% endif %}
+      <script>
+        (function() {
+          const el = document.getElementById('last-run-time');
+          const utc = el.dataset.utc;
+          if (utc) {
+            const d = new Date(utc);
+            const lang = '{{ language }}';
+            if (lang === 'fr') {
+              el.textContent = d.toLocaleDateString('fr-FR') + ' à ' + d.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
+            } else {
+              el.textContent = d.toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'}) + ' at ' + d.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'});
+            }
+          }
+        })();
+      </script>
     </div>
+    <div class="flex items-center gap-3.5">
+      <button hx-post="/pipeline/run" hx-target="#pipeline-status" hx-swap="innerHTML"
+              class="bg-indigo-600 hover:bg-indigo-700 text-white border-none rounded-lg px-4 py-2 text-sm font-semibold cursor-pointer">
+        {{ t.run_pipeline }}
+      </button>
+      {% if sheet_connected %}
+      <a href="#" target="_blank" class="text-sm text-indigo-600 font-medium">{{ t.open_sheet }}</a>
+      {% endif %}
+    </div>
+  {% else %}
+    <div class="bg-white border border-slate-200 rounded-xl px-5 py-4 mb-5 text-sm text-slate-400">
+      {{ t.get("no_runs_yet", "Aucune exécution pour l'instant") }}
+    </div>
+    <div class="flex items-center gap-3.5">
+      <button hx-post="/pipeline/run" hx-target="#pipeline-status" hx-swap="innerHTML"
+              class="bg-indigo-600 hover:bg-indigo-700 text-white border-none rounded-lg px-4 py-2 text-sm font-semibold cursor-pointer">
+        {{ t.run_pipeline }}
+      </button>
+      {% if sheet_connected %}
+      <a href="#" target="_blank" class="text-sm text-indigo-600 font-medium">{{ t.open_sheet }}</a>
+      {% endif %}
+    </div>
+  {% endif %}
 </div>
 {% endblock %}

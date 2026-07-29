@@ -1,11 +1,22 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, get_args
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from backend.utils.constants import SUPPORTED_CONTRACT_TYPES, SUPPORTED_LANGUAGES
+
+# Type aliases kept here as static Literal types for Pydantic/mypy compatibility.
+# The canonical string values live in backend/utils/constants.py.
 ContractType = Literal["CDD", "CDI", "alternance_apprentissage", "alternance_professionnalisation", "freelance", "stage"]
 SupportedLanguage = Literal["en", "fr"]
+
+assert set(get_args(ContractType)) == set(SUPPORTED_CONTRACT_TYPES), (
+    "ContractType Literal and SUPPORTED_CONTRACT_TYPES are out of sync — update both together"
+)
+assert set(get_args(SupportedLanguage)) == set(SUPPORTED_LANGUAGES), (
+    "SupportedLanguage Literal and SUPPORTED_LANGUAGES are out of sync — update both together"
+)
 
 
 class RawJobPosting(BaseModel):
@@ -16,7 +27,7 @@ class RawJobPosting(BaseModel):
     description_text: str
     id: str
     location: str
-    source: Literal["adzuna", "france_travail", "google_cse", "jsearch"]
+    source: Literal["adzuna", "arbeitnow", "france_travail", "jsearch", "remotive"]
     title: str
     url: str
 
@@ -43,3 +54,10 @@ class ParsedJobDescription(BaseModel):
     required_skills: list[str] = Field(default_factory=list)
     required_tools: list[str] = Field(default_factory=list)
     title: str = ""
+
+    @field_validator("job_id", "title", "company", mode="before")
+    @classmethod
+    def none_to_empty_str(cls, v: object) -> str:
+        if v is None:
+            return ""
+        return v

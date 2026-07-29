@@ -1,0 +1,531 @@
+from __future__ import annotations
+
+from enum import StrEnum
+
+
+# UI limits and logic
+MIN_BULLET_LENGTH: int = 25
+MAX_BULLETS_PER_ROLE: int = 4
+MAX_ROLES_LIMIT: int = 999
+
+# Language Detection
+FRENCH_DETECTION_WORDS: list[str] = [" est ", " sont ", " avec ", " dans ", " pour ", " une ", " les ", " des ", " par ", " sur ", " au ", " du ", " ce ", " qui ", " que "]
+
+# Hallucination checker — words too common to be flagged as fabricated tech terms.
+HALLUCINATION_COMMON_WORDS: frozenset[str] = frozenset([
+    "the", "and", "or", "for", "with", "from", "to", "in", "on", "at",
+    "by", "a", "an", "is", "of", "le", "la", "les", "des", "pour",
+    "avec", "dans", "et", "ou", "en", "sur", "au", "aux"
+])
+
+# Hallucination checker — short abbreviations that must be present verbatim in the original CV.
+HALLUCINATION_SHORT_TECH_NAMES: frozenset[str] = frozenset([
+    "go", "r", "c", "c#", "c++", "ai", "ml", "qa", "ux", "ui", "ci", "cd", "js", "ts"
+])
+
+# SheetsTracker application status keywords
+SHEETS_TRACKER_STATUS_VALUES: dict[str, list[str]] = {
+    "fr": ["À postuler", "Postulé", "Entretien", "Refusé", "Offre"],
+    "en": ["To apply", "Applied", "Interview", "Rejected", "Offer"],
+}
+
+# SheetsTracker column headers
+SHEETS_TRACKER_HEADERS: dict[str, list[str]] = {
+    "fr": [
+        "Date", "Entreprise", "Poste", "Localisation", "Type contrat",
+        "Score algo (0-100)", "Score recruteur (0-10)", "Mots-clés manquants",
+        "Statut", "URL", "CV fichier", "LM fichier", "Recommandation", "Notes",
+    ],
+    "en": [
+        "Date", "Company", "Title", "Location", "Contract type",
+        "Algo score (0-100)", "Recruiter score (0-10)", "Missing keywords",
+        "Status", "URL", "Resume file", "Cover letter file", "Recommendation", "Notes",
+    ],
+}
+
+# Output generator heading mappings by language
+SECTION_HEADINGS: dict[str, dict[str, str]] = {
+    "fr": {
+        "skills": "Compétences",
+        "skills_technical": "Compétences techniques",
+        "skills_soft": "Soft Skills",
+        "certifications": "Certifications",
+        "experience": "Expérience professionnelle",
+        "education": "Éducation",
+        "projects": "Projets académiques",
+        "associations": "Associations",
+        "languages": "Langues",
+    },
+    "en": {
+        "skills": "Skills",
+        "skills_technical": "Technical Skills",
+        "skills_soft": "Soft Skills",
+        "certifications": "Certifications",
+        "experience": "Professional Experience",
+        "education": "Education",
+        "projects": "Academic Projects",
+        "associations": "Associations",
+        "languages": "Languages",
+    },
+}
+
+# Type suffixes that may already appear in resume titles (both languages)
+TYPE_SUFFIXES: list[str] = [
+    "(Internship)", "(Stage)", "(Alternance)", "(Volunteer)",
+    "(Bénévolat)", "(Freelance)",
+    "(internship)", "(stage)", "(alternance)", "(volunteer)",
+    "(bénévolat)", "(freelance)",
+]
+
+# Keywords that indicate an academic or research role in output_generator
+ACADEMIC_KEYWORDS: frozenset[str] = frozenset([
+    "professor", "researcher", "postdoc", "faculty",
+    "chercheur", "enseignant-chercheur", "maître de conférences"
+])
+
+# Deterministic language name translations (EN → FR)
+LANG_NAMES_EN_TO_FR: dict[str, str] = {
+    "arabic": "Arabe", "chinese": "Chinois", "dutch": "Néerlandais",
+    "english": "Anglais", "french": "Français", "german": "Allemand",
+    "hindi": "Hindi", "italian": "Italien", "japanese": "Japonais",
+    "korean": "Coréen", "portuguese": "Portugais", "russian": "Russe",
+    "spanish": "Espagnol", "turkish": "Turc", "ukrainian": "Ukrainien",
+    "polish": "Polonais", "romanian": "Roumain", "swedish": "Suédois",
+    "danish": "Danois", "norwegian": "Norvégien", "finnish": "Finnois",
+    "greek": "Grec", "hebrew": "Hébreu", "persian": "Persan",
+    "thai": "Thaï", "vietnamese": "Vietnamien", "czech": "Tchèque",
+    "hungarian": "Hongrois", "bengali": "Bengali", "malay": "Malais",
+    "indonesian": "Indonésien", "tagalog": "Tagalog",
+}
+
+# Deterministic proficiency level translations (EN → FR)
+# CEFR codes (A1, A2, B1, B2, C1, C2) are NOT translated — they stay as-is
+PROFICIENCY_EN_TO_FR: dict[str, str] = {
+    "native": "Natif", "bilingual": "Bilingue", "fluent": "Courant",
+    "advanced": "Avancé", "intermediate": "Intermédiaire",
+    "beginner": "Débutant", "elementary": "Élémentaire",
+    "professional": "Professionnel",
+    "native or bilingual": "Natif ou bilingue",
+    "full professional": "Courant professionnel",
+    "limited working": "Niveau professionnel limité",
+}
+
+# Canonical contract types recognised by the pipeline. Keep in sync with ContractType in models/job.py.
+SUPPORTED_CONTRACT_TYPES: tuple[str, ...] = (
+    "CDD",
+    "CDI",
+    "alternance_apprentissage",
+    "alternance_professionnalisation",
+    "freelance",
+    "stage",
+)
+
+# Canonical language codes supported by the app. Keep in sync with SupportedLanguage in models/job.py.
+SUPPORTED_LANGUAGES: tuple[str, ...] = ("en", "fr")
+
+
+class PipelineStatus(StrEnum):
+    """Canonical values for app_state['pipeline_status']."""
+    IDLE = "idle"
+    RUNNING = "running"
+    COMPLETE = "complete"
+    ERROR = "error"
+
+
+# Minimum character length for a bullet point to be considered valid
+MIN_BULLET_LENGTH: int = 25
+
+# Upper bound on bullet points rendered per experience role in output_generator
+MAX_BULLETS_PER_ROLE: int = 4
+
+# Sentinel used to remove the roles cap (no upper limit)
+MAX_ROLES_LIMIT: int = 999
+
+# Common bilingual stop-words excluded from job-title relevance matching.
+TITLE_RELEVANCE_STOPWORDS: frozenset[str] = frozenset({
+    "de", "du", "le", "la", "les",
+    "the", "a", "an", "and",
+    "et", "en", "in", "of",
+    "-", "\u2013",
+})
+
+
+SENIORITY_KEYWORDS = {
+    "stagiaire": ["stagiaire", "intern", "stage"],
+    "alternant": ["alternant", "alternance", "apprenti"],
+    "junior": ["junior", "jr"],
+    "mid": ["mid", "intermédiaire", "confirmé"],
+    "senior": ["senior", "sr", "expérimenté", "experienced"],
+    "lead": ["lead", "principal", "staff", "head"],
+}
+
+# Canonical seniority levels. Keep in sync with SeniorityLevel in models/match.py.
+SUPPORTED_SENIORITY_LEVELS: tuple[str, ...] = (
+    "alternant",
+    "intermédiaire",
+    "junior",
+    "lead",
+    "mid",
+    "senior",
+    "stagiaire",
+)
+
+CONTRACT_KEYWORDS = {
+    "CDI": ["cdi", "permanent", "full-time", "full time", "unbefristet"],
+    "CDD": ["cdd", "fixed-term", "fixed term", "contract", "temporary"],
+    "stage": ["stage", "internship", "intern", "stagiaire"],
+    "alternance_apprentissage": ["alternance", "apprentissage", "apprenti", "work-study"],
+    "alternance_professionnalisation": ["alternance", "professionnalisation"],
+    "freelance": ["freelance", "contractor", "independent", "indépendant"],
+}
+
+# Keywords that indicate a CDD is actually an apprenticeship contract.
+# France Travail encodes these as "CDD - Contrat apprentissage".
+ALTERNANCE_KEYWORDS: list[str] = [
+    "apprentissage", "apprenti", "alternance", "contrat pro",
+    "professionnalisation", "work-study",
+]
+
+# Keywords for detecting contract type from a job title.
+TITLE_CONTRACT_SIGNALS: dict[str, list[str]] = {
+    "stage": ["internship", "stage", "intern", "stagiaire"],
+    "freelance": ["freelance", "contractor", "indépendant", "freelancer", "independent"],
+    "alternance_apprentissage": ["alternance", "apprenti", "apprentissage", "work-study"],
+}
+
+# Language-specific conventions for LLM cover letter generation.
+COVER_LETTER_CONVENTIONS: dict[str, str] = {
+    "fr": (
+        '- Use professional vouvoiement throughout.\n'
+        '- Open with "Madame, Monsieur,"\n'
+        '- Close with "Je vous prie d\'agréer, Madame, Monsieur, '
+        'l\'expression de mes salutations distinguées."\n'
+        '- Do NOT use any English salutations or closings.'
+    ),
+    "en": (
+        '- Use professional but natural English register.\n'
+        '- Open with "Dear Hiring Manager,"\n'
+        '- Close with "Sincerely,"\n'
+        '- Do NOT use any French salutations, closings, or vouvoiement.'
+    ),
+}
+
+# INSEE commune codes for major French cities.
+# France Travail's `distance` parameter requires a `commune` code, not free-text.
+CITY_INSEE_CODES: dict[str, str] = {
+    "paris": "75056",
+    "lyon": "69123",
+    "marseille": "13055",
+    "toulouse": "31555",
+    "nice": "06088",
+    "nantes": "44109",
+    "strasbourg": "67482",
+    "montpellier": "34172",
+    "bordeaux": "33063",
+    "lille": "59350",
+    "rennes": "35238",
+    "grenoble": "38185",
+    "metz": "57463",
+    "nancy": "54395",
+    "rouen": "76540",
+    "tours": "37261",
+    "dijon": "21231",
+    "angers": "49007",
+    "clermont-ferrand": "63113",
+    "reims": "51454",
+    "aix-en-provence": "13001",
+    "brest": "29019",
+    "le havre": "76351",
+    "limoges": "87085",
+    "toulon": "83137",
+}
+
+# Used by preview.py to translate LLM verdict violations into user-facing warnings.
+VIOLATION_LABELS: dict[str, dict[str, str]] = {
+    "fr": {
+        "fabricated_metric": "Un chiffre semble avoir été inventé, vérifiez qu'il correspond à votre expérience réelle",
+        "invented_skill": "Une compétence ou un outil a été ajouté qui ne figure pas dans votre CV original",
+        "jd_attribution": "Cette phrase semble venir de l'offre d'emploi, pas de votre parcours",
+        "scope_inflation": "Votre rôle semble décrit de façon plus importante que dans votre CV original",
+        "other": "Un point a été modifié, vérifiez qu'il correspond à votre expérience",
+    },
+    "en": {
+        "fabricated_metric": "A number seems to have been added, check it matches your real experience",
+        "invented_skill": "A skill or tool was added that isn't in your original CV",
+        "jd_attribution": "This seems to come from the job posting, not from your background",
+        "scope_inflation": "Your role seems described as bigger than in your original CV",
+        "other": "Something was changed, check it matches your experience",
+    },
+}
+
+# Severity labels, keyed by language code then severity level.
+SEVERITY_LABELS: dict[str, dict[str, str]] = {
+    "fr": {
+        "HIGH": "À corriger avant d'envoyer",
+        "MEDIUM": "À vérifier avant d'envoyer",
+        "LOW": "Point mineur — à votre appréciation",
+    },
+    "en": {
+        "HIGH": "Fix this before sending",
+        "MEDIUM": "Check this before sending",
+        "LOW": "Minor point — your call",
+    },
+}
+
+
+TRANSLATIONS = {
+    "fr": {
+        "nav_dashboard": "Tableau de bord",
+        "nav_settings": "Paramètres",
+        "nav_results": "Résultats",
+        "dashboard_title": "Tableau de bord",
+        "jobs_found": "Offres trouvées",
+        "avg_score": "Score moyen",
+        "above_threshold": "Au-dessus du seuil (50+)",
+        "run_pipeline": "Lancer la recherche",
+        "open_sheet": "Ouvrir Google Sheet ↗",
+        "settings_title": "Paramètres",
+        "resume_section": "CV",
+        "resume_parsed": "CV analysé avec succès",
+        "reupload": "Recharger le CV",
+        "drop_zone_title": "Déposez votre CV ici, ou cliquez pour importer",
+        "drop_zone_sub": "Formats .pdf et .docx acceptés",
+        "pref_title": "Préférences de recherche",
+        "field_titles": "Intitulés de poste ciblés",
+        "field_location": "Localisation",
+        "field_radius": "Rayon (km)",
+        "field_remote": "Télétravail accepté",
+        "field_seniority": "Séniorité",
+        "field_contract": "Type de contrat",
+        "field_exclude": "Mots-clés à exclure",
+        "field_language": "Langue de sortie",
+        "save_prefs": "Enregistrer les préférences",
+        "results_title": "Résultats",
+        "col_company": "Entreprise",
+        "col_title": "Poste",
+        "col_algo": "Algo",
+        "col_recruiter": "Recruteur",
+        "col_location": "Lieu",
+        "col_contract": "Contrat",
+        "col_date": "Date",
+        "col_source": "Source",
+        "col_actions": "Actions",
+        "sort_by": "Trier par :",
+        "empty_title": "Aucun résultat pour l'instant.",
+        "empty_sub": "Lancez le pipeline depuis le tableau de bord.",
+        "empty_link": "Aller au tableau de bord →",
+        "back_to_results": "Retour aux résultats",
+        "original_posting": "Voir l'offre originale →",
+        "bullet_comparison": "Comparaison des points clés",
+        "cover_letter": "Lettre de motivation",
+        "approve_btn": "Approuver et enregistrer",
+        "edit_btn": "Modifier",
+        "cancel_edit": "Annuler",
+        "save_edits": "Enregistrer les modifications",
+        "tailored_resume_title": "CV adapté",
+        "copy_resume": "Copier le CV",
+        "regenerate_btn": "Régénérer",
+        "footer": "Cvly - Agent IA de candidature",
+        "last_run": "Dernière exécution : ",
+        "no_pipeline_run": "Aucune exécution pour l'instant",
+        "settings_subtitle": "Configurez votre CV et vos préférences de recherche.",
+        "empty_results_msg": "Essayez d'élargir votre rayon ou votre séniorité.",
+        "filter_btn": "Filtrer",
+        "original_title": "Original",
+        "hallucination_title": "Risque d'hallucination",
+        "hallucination_desc": "Veuillez vérifier l'exactitude des points personnalisés.",
+        "error_rate_limit": "Limite d'API atteinte. Veuillez patienter 30 secondes et réessayer.",
+        "error_parsing": "Échec de l'analyse du CV. Veuillez réessayer.",
+        "error_pipeline": "Une erreur est survenue lors de l'exécution du pipeline. Veuillez réessayer.",
+        "error_upload_failed": "Échec de l'importation du fichier.",
+        "resume_name_label": "Nom",
+        "resume_profile_label": "Type de profil",
+        "resume_skills_label": "Compétences détectées",
+        "resume_experience_label": "Expérience",
+        "resume_education_label": "Éducation",
+        "skills_suffix": "compétences",
+        "roles_suffix": "postes",
+        "delete_resume": "Supprimer le CV",
+        "prefs_saved": "Préférences enregistrées",
+        "error_no_resume": "Veuillez d'abord importer un CV.",
+        "error_no_prefs": "Veuillez d'abord enregistrer vos préférences.",
+        "step_prefix": "Étape",
+        "step_parsing": "Analyse du CV...",
+        "step_discovering": "Recherche d'offres...",
+        "step_parsing_jds": "Analyse des descriptions...",
+        "step_scoring": "Calcul des scores...",
+        "step_tailoring": "Adaptation du CV...",
+        "pipeline_complete": "Pipeline terminé",
+        "jobs_found_suffix": "offres trouvées",
+        "pipeline_running_status": "Pipeline en cours d'exécution...",
+        "pipeline_running_msg": "Le pipeline est en cours d'exécution. Cette opération peut prendre quelques minutes selon le nombre d'offres trouvées.",
+        "pipeline_already_running": "Un pipeline est déjà en cours d'exécution. Veuillez patienter.",
+        "pipeline_force_reset": "Forcer la réinitialisation",
+        "last_run_prefix": "Dernière exécution :",
+        "no_runs_yet": "Aucune exécution pour l'instant",
+        "atf_analysis_title": "Analyse ATF",
+        "strengths_title": "Points forts",
+        "weaknesses_title": "Points faibles",
+        "keywords_gap_title": "Analyse des mots-clés",
+        "matched_keywords_title": "Mots-clés correspondants",
+        "missing_keywords_title": "Mots-clés manquants",
+        "close_details": "Fermer les détails",
+        "no_atf_available": "Aucune analyse ATF disponible pour cette offre.",
+        "seniority_label": "Séniorité",
+        "recommendation_label": "Recommandation",
+
+        "hallucination_section_title": "Points à vérifier",
+        "edit_cover_letter": "Modifier",
+        "unfillable": "Mots-clés non intégrables :",
+        "error_tailoring": "Échec de la personnalisation. Veuillez réessayer.",
+        "error_no_data": "CV ou description de poste indisponible pour la personnalisation.",
+        "error_unexpected": "Erreur inattendue",
+        "no_tailoring_data": "Aucune donnée de personnalisation disponible.",
+        "ai_disclaimer": "Ce contenu a été généré par l'intelligence artificielle. Relisez attentivement chaque point et corrigez toute information inexacte avant d'envoyer votre candidature. Vous êtes le seul garant de l'exactitude de votre CV.",
+        "cover_letter_title": "Lettre de motivation",
+        "tailored_cv_title": "CV adapté",
+        "copy_cv": "Copier le CV",
+        "approve_save": "Approuver et enregistrer",
+        "action_expand": "Voir les détails",
+        "action_tailor": "Adapter le CV",
+        "action_skip": "Ignorer",
+        "job_approved_msg": "CV et lettre de motivation sauvegardés. Prêt à postuler",
+        "copied": "Copié !",
+        "no_details": "Pas de détails",
+        "saved_badge": "Sauvegardé",
+        "col_status": "Statut",
+        "status_saved": "Sauvegardé",
+        "status_pending": "À traiter",
+        "filter_min_score": "Score minimum",
+        "filter_status": "Statut",
+        "filter_all": "Tous",
+        "company_not_specified": "Entreprise non précisée",
+    },
+    "en": {
+        "nav_dashboard": "Dashboard",
+        "nav_settings": "Settings",
+        "nav_results": "Results",
+        "dashboard_title": "Dashboard",
+        "jobs_found": "Jobs Found",
+        "avg_score": "Avg Match Score",
+        "above_threshold": "Above Threshold (50+)",
+        "run_pipeline": "Start Search",
+        "open_sheet": "Open Google Sheet ↗",
+        "settings_title": "Settings",
+        "resume_section": "Resume",
+        "resume_parsed": "Resume parsed successfully",
+        "reupload": "Re-upload resume",
+        "drop_zone_title": "Drop your resume here, or click to upload",
+        "drop_zone_sub": "Accepts .pdf and .docx",
+        "pref_title": "Search Preferences",
+        "field_titles": "Target job titles",
+        "field_location": "Location",
+        "field_radius": "Radius (km)",
+        "field_remote": "Remote OK",
+        "field_seniority": "Seniority",
+        "field_contract": "Contract type",
+        "field_exclude": "Exclude keywords",
+        "field_language": "Output language",
+        "save_prefs": "Save Preferences",
+        "results_title": "Results",
+        "col_company": "Company",
+        "col_title": "Title",
+        "col_algo": "Algo",
+        "col_recruiter": "Recruiter",
+        "col_location": "Location",
+        "col_contract": "Contract",
+        "col_date": "Date",
+        "col_source": "Source",
+        "col_actions": "Actions",
+        "sort_by": "Sort by:",
+        "empty_title": "No results yet.",
+        "empty_sub": "Run the pipeline from the Dashboard to discover matching jobs.",
+        "empty_link": "Go to Dashboard →",
+        "back_to_results": "Back to Results",
+        "original_posting": "View original posting →",
+        "bullet_comparison": "Bullet Comparison",
+        "cover_letter": "Cover Letter",
+        "approve_btn": "Approve & Save",
+        "edit_btn": "Edit",
+        "cancel_edit": "Cancel",
+        "save_edits": "Save edits",
+        "tailored_resume_title": "Tailored Resume",
+        "copy_resume": "Copy Resume",
+        "regenerate_btn": "Regenerate",
+        "footer": "Cvly - AI Job Application Agent",
+        "last_run": "Last run: ",
+        "no_pipeline_run": "No pipeline runs yet",
+        "settings_subtitle": "Configure your resume and job search preferences.",
+        "empty_results_msg": "Try relaxing your location radius or seniority levels.",
+        "filter_btn": "Filter",
+        "original_title": "Original",
+        "hallucination_title": "Hallucination Risk",
+        "hallucination_desc": "Please verify the tailored points for accuracy.",
+        "error_rate_limit": "API rate limit reached. Please wait 30 seconds and try again.",
+        "error_parsing": "Failed to parse resume. Please try again.",
+        "error_pipeline": "An error occurred while running the pipeline. Please try again.",
+        "error_upload_failed": "File upload failed.",
+        "resume_name_label": "Name",
+        "resume_profile_label": "Profile type",
+        "resume_skills_label": "Skills detected",
+        "resume_experience_label": "Experience",
+        "resume_education_label": "Education",
+        "skills_suffix": "skills",
+        "roles_suffix": "roles",
+        "delete_resume": "Delete resume",
+        "prefs_saved": "Preferences saved",
+        "error_no_resume": "Please upload a resume first.",
+        "error_no_prefs": "Please save your preferences first.",
+        "step_prefix": "Step",
+        "step_parsing": "Parsing resume...",
+        "step_discovering": "Discovering jobs...",
+        "step_parsing_jds": "Parsing job descriptions...",
+        "step_scoring": "Scoring matches...",
+        "step_tailoring": "Tailoring CVs...",
+        "pipeline_complete": "Pipeline complete",
+        "jobs_found_suffix": "jobs found",
+        "pipeline_running_status": "Pipeline is running...",
+        "pipeline_running_msg": "Pipeline is running. This may take a few minutes depending on the number of jobs found.",
+        "pipeline_already_running": "A pipeline is already running. Please wait.",
+        "pipeline_force_reset": "Force reset",
+        "last_run_prefix": "Last run: ",
+        "no_runs_yet": "No pipeline runs yet",
+        "atf_analysis_title": "ATF Analysis",
+        "strengths_title": "Strengths",
+        "weaknesses_title": "Weaknesses",
+        "keywords_gap_title": "Keywords Gap Analysis",
+        "matched_keywords_title": "Matched keywords",
+        "missing_keywords_title": "Missing keywords",
+        "close_details": "Close details",
+        "no_atf_available": "No ATF analysis available for this job.",
+        "seniority_label": "Seniority",
+        "recommendation_label": "Recommendation",
+
+        "hallucination_section_title": "Points to review",
+        "edit_cover_letter": "Edit",
+        "unfillable": "Keywords that could not be incorporated:",
+        "error_tailoring": "Tailoring failed. Please try again.",
+        "error_no_data": "Resume or job description not available for tailoring.",
+        "error_unexpected": "Unexpected error",
+        "no_tailoring_data": "No tailoring data available.",
+        "ai_disclaimer": "This content was generated by artificial intelligence. Carefully review every point and correct any inaccurate information before submitting your application. You are solely responsible for the accuracy of your CV.",
+        "cover_letter_title": "Cover Letter",
+        "tailored_cv_title": "Tailored Resume",
+        "copy_cv": "Copy Resume",
+        "approve_save": "Approve & Save",
+        "action_expand": "View details",
+        "action_tailor": "Tailor Resume",
+        "action_skip": "Skip",
+        "job_approved_msg": "CV and cover letter saved. Ready to apply",
+        "copied": "Copied!",
+        "no_details": "No details",
+        "saved_badge": "Saved",
+        "col_status": "Status",
+        "status_saved": "Saved",
+        "status_pending": "Pending",
+        "filter_min_score": "Minimum score",
+        "filter_status": "Status",
+        "filter_all": "All",
+        "company_not_specified": "Company not specified",
+    },
+}

@@ -1,39 +1,64 @@
 <tr id="details-{{ job.id }}" class="bg-indigo-50/30 border-b border-indigo-100">
-    <td colspan="6" class="p-6">
-        <div class="grid grid-cols-3 gap-6">
-            <div class="col-span-3 pb-4 border-b border-indigo-100/50 flex justify-between items-start">
+    <td colspan="6" class="p-0">
+        <div class="p-5 bg-slate-50 border-b border-slate-100">
+          {% if job.atf %}
+          <div class="mb-4">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">{{ t.atf_analysis_title }}</div>
+            <p class="text-sm text-slate-700 leading-relaxed mb-2">{{ job.atf.summary }}</p>
+            <div class="text-sm text-slate-600 space-y-1">
+              <div><span class="font-semibold">{{ t.seniority_label }} :</span> {{ job.atf.seniority }}</div>
+              <div><span class="font-semibold">{{ t.recommendation_label }} :</span> {{ job.atf.recommendation }}</div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-3 gap-4 mb-4">
+            <div class="bg-white p-4 rounded-xl border border-slate-200">
+              <h5 class="font-bold text-sm mb-2 text-green-800">{{ t.strengths_title }}</h5>
+              <ul class="text-sm text-slate-600 list-disc pl-4 space-y-1">
+                {% for s in job.atf.strengths %}
+                <li>{{ s }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+            <div class="bg-white p-4 rounded-xl border border-slate-200">
+              <h5 class="font-bold text-sm mb-2 text-amber-700">{{ t.weaknesses_title }}</h5>
+              <ul class="text-sm text-slate-600 list-disc pl-4 space-y-1">
+                {% for w in job.atf.weaknesses %}
+                <li>{{ w }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+            <div class="bg-white p-4 rounded-xl border border-slate-200">
+              <h5 class="font-bold text-sm mb-2 text-slate-800">{{ t.keywords_gap_title }}</h5>
+              {% if job.matched_keywords or job.missing_keywords %}
+                {% if job.matched_keywords %}
+                <div class="mb-2">
+                  <div class="text-xs text-green-700 font-semibold mb-1">{{ t.matched_keywords_title }}</div>
+                  <div class="flex flex-wrap gap-1.5">
+                    {% for kw in job.matched_keywords %}
+                    <span class="bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded-full">{{ kw }}</span>
+                    {% endfor %}
+                  </div>
+                </div>
+                {% endif %}
+                {% if job.missing_keywords %}
                 <div>
-                    <h4 class="font-bold text-lg mb-1 text-slate-800">ATF Analysis</h4>
-                    <p class="text-sm text-slate-600">{{ job.atf_analysis }}</p>
+                  <div class="text-xs text-red-700 font-semibold mb-1">{{ t.missing_keywords_title }}</div>
+                  <div class="flex flex-wrap gap-1.5">
+                    {% for kw in job.missing_keywords %}
+                    <span class="bg-red-100 text-red-800 text-xs px-2 py-0.5 rounded-full">{{ kw }}</span>
+                    {% endfor %}
+                  </div>
                 </div>
+                {% endif %}
+              {% else %}
+                <div class="text-xs text-slate-400 italic">{{ t.get("no_keywords_data", "Aucune donnée de mots-clés disponible") }}</div>
+              {% endif %}
             </div>
-
-            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                <h5 class="font-bold text-sm mb-3 text-slate-800">Strengths</h5>
-                <ul class="text-sm text-slate-600 list-disc pl-4 space-y-1">
-                    <li>Strong backend experience</li>
-                    <li>Perfect match for remote</li>
-                </ul>
-            </div>
-
-            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                <h5 class="font-bold text-sm mb-3 text-slate-800">Weaknesses</h5>
-                <ul class="text-sm text-slate-600 list-disc pl-4 space-y-1">
-                    <li>Missing direct AWS CI/CD exp</li>
-                </ul>
-            </div>
-
-            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                <h5 class="font-bold text-sm mb-3 text-slate-800">Keywords Gap Analysis</h5>
-                <div class="flex flex-wrap gap-2">
-                    <span class="text-xs bg-green-100 text-green-800 px-2.5 py-1 rounded-full border border-green-200 font-medium">Python</span>
-                    <span class="text-xs bg-green-100 text-green-800 px-2.5 py-1 rounded-full border border-green-200 font-medium">FastAPI</span>
-                    <span class="text-xs bg-red-100 text-red-800 px-2.5 py-1 rounded-full border border-red-200 font-medium">Terraform</span>
-                </div>
-            </div>
-        </div>
-        <div class="mt-4 flex justify-end">
-            <button hx-get="/results/job/close" hx-target="#details-{{ job.id }}" class="text-sm text-slate-500 hover:text-slate-800 font-medium">Close details</button>
+          </div>
+          {% else %}
+          <div class="text-sm text-slate-400 italic mb-4">{{ t.no_atf_available }}</div>
+          {% endif %}
         </div>
     </td>
 </tr>

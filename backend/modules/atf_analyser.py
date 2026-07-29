@@ -2,10 +2,8 @@ from __future__ import annotations
 
 from backend.models.match import ATFAnalysis
 from backend.prompts import (
-    ATF_SYSTEM_PROMPT_EN,
-    ATF_SYSTEM_PROMPT_FR,
-    ATF_USER_PROMPT_EN,
-    ATF_USER_PROMPT_FR,
+    ATF_SYSTEM_PROMPT,
+    ATF_USER_PROMPT,
 )
 from backend.services.gemini_llm import GeminiLLMService
 
@@ -17,22 +15,15 @@ async def analyse_atf(
     language: str = "fr"
 ) -> ATFAnalysis:
 
-    if language == "en":
-        sys_prompt = ATF_SYSTEM_PROMPT_EN.replace("{language}", language)
-        user_prompt = ATF_USER_PROMPT_EN.replace(
-            "{raw_job_description}", jd_text
-        ).replace(
-            "{raw_resume_text}", resume_text
-        )
-    else:
-        sys_prompt = ATF_SYSTEM_PROMPT_FR.replace("{language}", language)
-        user_prompt = ATF_USER_PROMPT_FR.replace(
-            "{raw_job_description}", jd_text
-        ).replace(
-            "{raw_resume_text}", resume_text
-        )
+    lang_name = "French" if language == "fr" else "English"
+    sys_prompt = ATF_SYSTEM_PROMPT.replace("{language}", lang_name)
+    user_prompt = (ATF_USER_PROMPT
+        .replace("{language}", lang_name)
+        .replace("{raw_job_description}", jd_text)
+        .replace("{raw_resume_text}", resume_text)
+    )
 
-    combined = sys_prompt + "\n\n" + user_prompt
+    combined = f"{sys_prompt}\n\n{user_prompt}"
 
     res = gemini_service.generate_json(
         combined,

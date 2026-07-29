@@ -26,39 +26,256 @@
         .htmx-indicator { display: none; }
         .htmx-request .htmx-indicator { display: inline-block; }
         .htmx-request.htmx-indicator { display: inline-block; }
+        .prose h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; }
+        .prose h2 { font-size: 1.125rem; font-weight: 600; margin-top: 1.25rem; margin-bottom: 0.5rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.25rem; }
+        .prose h3 { font-size: 0.9375rem; font-weight: 600; margin-top: 1rem; margin-bottom: 0.25rem; }
+        .prose ul { list-style: disc; padding-left: 1.25rem; margin-bottom: 0.5rem; }
+        .prose li { margin-bottom: 0.25rem; font-size: 0.875rem; line-height: 1.5; }
+        .prose p { margin-bottom: 0.5rem; font-size: 0.875rem; line-height: 1.6; }
+        .prose strong { font-weight: 600; }
+        .prose hr { border: none; border-top: 1px solid #e2e8f0; margin: 1rem 0; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans flex h-screen overflow-hidden">
-    <aside class="w-[220px] bg-white border-r border-slate-200 flex flex-col justify-between p-5 overflow-y-auto">
+    <div class="w-[220px] flex-shrink-0 bg-white border-r border-slate-200 flex flex-col justify-between sticky top-0 h-screen">
         <div>
-            <div class="mb-8">
-                <h1 class="text-3xl font-bold text-indigo-600">Cvly</h1>
+            <div class="px-5 flex items-center border-b border-slate-200 h-14">
+                <a href="/" class="text-xl font-extrabold text-indigo-600 tracking-tight no-underline">Cvly</a>
             </div>
 
-            <nav class="space-y-2">
-                <a href="/" class="flex items-center px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors {{ 'bg-slate-100 font-medium' if request.url.path == '/' else 'text-slate-600' }}">Dashboard</a>
-                <a href="/settings" class="flex items-center px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors {{ 'bg-slate-100 font-medium' if request.url.path == '/settings' else 'text-slate-600' }}">Settings</a>
-                <a href="/results" class="flex items-center px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors {{ 'bg-slate-100 font-medium' if request.url.path.startswith('/results') else 'text-slate-600' }}">Results</a>
+            <nav class="px-3 py-3.5 flex flex-col gap-0.5">
+                <a href="/" class="block px-3 py-2.5 rounded-lg text-sm {% if active_page == 'dashboard' %}font-semibold text-indigo-600 bg-indigo-50{% else %}font-medium text-slate-600 hover:bg-slate-50{% endif %} no-underline">{{ t.nav_dashboard }}</a>
+                <a href="/results" class="block px-3 py-2.5 rounded-lg text-sm {% if active_page == 'results' %}font-semibold text-indigo-600 bg-indigo-50{% else %}font-medium text-slate-600 hover:bg-slate-50{% endif %} no-underline">{{ t.nav_results }}</a>
             </nav>
         </div>
 
-        <div class="text-sm text-slate-500 mt-auto">
-            <p>Cvly — AI Job Application Agent · v1.0</p>
+        <div>
+            <div class="px-3 pb-2">
+                <a href="/settings" class="block px-3 py-2.5 rounded-lg text-sm {% if active_page == 'settings' %}font-semibold text-indigo-600 bg-indigo-50{% else %}font-medium text-slate-600 hover:bg-slate-50{% endif %} no-underline">{{ t.nav_settings }}</a>
+            </div>
+            <div class="px-5 py-4 border-t border-slate-50 text-[11px] text-slate-400">
+                {{ t.footer }}
+            </div>
         </div>
-    </aside>
+    </div>
 
-    <main class="flex-1 flex flex-col h-screen overflow-hidden">
-        <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-end px-5 shrink-0">
-            <select class="text-sm border-slate-200 rounded text-slate-600 outline-none p-1">
-                <option value="fr">FR</option>
-                <option value="en">EN</option>
-            </select>
+    <div class="flex-1 min-w-0 overflow-y-auto h-screen relative">
+        <header class="sticky top-0 z-50 flex justify-end items-center px-12 bg-white border-b border-slate-200 shrink-0 h-14">
+            <div class="flex gap-0.5 bg-slate-100 rounded-lg p-0.5">
+              <button
+                hx-post="/settings/language/fr"
+                hx-swap="none"
+                class="{% if language == 'fr' %}bg-white text-indigo-600 shadow-sm{% else %}bg-transparent text-slate-500{% endif %} border-none rounded-md px-3 py-1 text-xs font-bold cursor-pointer">
+                FR
+              </button>
+              <button
+                hx-post="/settings/language/en"
+                hx-swap="none"
+                class="{% if language == 'en' %}bg-white text-indigo-600 shadow-sm{% else %}bg-transparent text-slate-500{% endif %} border-none rounded-md px-3 py-1 text-xs font-bold cursor-pointer">
+                EN
+              </button>
+            </div>
         </header>
-        <div class="flex-1 overflow-y-auto p-8 relative">
-            <div id="toast-container" class="absolute top-4 right-4 z-50 flex flex-col gap-2"></div>
 
+
+        <div class="px-12 py-10">
             {% block content %}{% endblock %}
         </div>
-    </main>
+    </div>
+
+    <div id="toast-container" class="fixed top-4 right-4 z-[100] flex flex-col gap-2"></div>
+    <!-- Pipeline navigation warning modal -->
+    <div id="nav-warning-modal" class="hidden fixed inset-0 z-[200] flex items-center justify-center">
+      <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onclick="closeNavWarning()"></div>
+      <div class="relative bg-white rounded-xl shadow-xl p-6 max-w-md mx-4">
+        <div class="text-lg font-semibold text-slate-800 mb-2">Pipeline en cours</div>
+        <div class="text-sm text-slate-600 mb-5" id="nav-warning-text"></div>
+        <div class="flex gap-3 justify-end">
+          <button onclick="closeNavWarning()"
+                  class="px-4 py-2 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg border-none cursor-pointer">
+            Rester sur la page
+          </button>
+          <button onclick="confirmNavAway()"
+                  class="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg border-none cursor-pointer">
+            Quitter quand même
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      let pipelineRunning = false;
+      let pendingNavUrl = null;
+
+      const WARNING_FR = "Le pipeline est en cours d'exécution. Si vous quittez maintenant, les résultats en cours seront perdus.";
+      const WARNING_EN = "The pipeline is running. If you leave now, current results will be lost.";
+
+      document.body.addEventListener('htmx:afterRequest', function(e) {
+        if (e.detail.pathInfo && e.detail.pathInfo.requestPath === '/pipeline/run') pipelineRunning = true;
+        if (e.detail.xhr && e.detail.xhr.responseText && e.detail.xhr.responseText.includes('hx-get="/"')) pipelineRunning = false;
+      });
+
+      // Intercept sidebar link clicks
+      document.addEventListener('click', function(e) {
+        if (!pipelineRunning) return;
+        const link = e.target.closest('a[href]');
+        if (!link) return;
+        const href = link.getAttribute('href');
+        if (href && (href === '/' || href === '/settings' || href === '/results')) {
+          e.preventDefault();
+          e.stopPropagation();
+          pendingNavUrl = href;
+          const lang = document.documentElement.lang || 'fr';
+          document.getElementById('nav-warning-text').textContent = lang === 'en' ? WARNING_EN : WARNING_FR;
+          document.getElementById('nav-warning-modal').classList.remove('hidden');
+        }
+      });
+
+      function closeNavWarning() {
+        document.getElementById('nav-warning-modal').classList.add('hidden');
+        pendingNavUrl = null;
+      }
+
+      function confirmNavAway() {
+        pipelineRunning = false;
+        document.getElementById('nav-warning-modal').classList.add('hidden');
+        if (pendingNavUrl) window.location.href = pendingNavUrl;
+      }
+
+      window.addEventListener('beforeunload', function(e) {
+        if (pipelineRunning) {
+          e.preventDefault();
+          e.returnValue = '';
+        }
+      });
+    </script>
+    <script>
+      function toggleJobDetails(btn, jobId) {
+        const detailRow = document.getElementById('details-' + jobId);
+        const isExpanded = btn.dataset.expanded === 'true';
+
+        if (isExpanded) {
+          detailRow.classList.add('hidden');
+          detailRow.innerHTML = '';
+          btn.dataset.expanded = 'false';
+          btn.querySelector('svg').style.transform = 'rotate(0deg)';
+        } else {
+          btn.dataset.expanded = 'true';
+          btn.querySelector('svg').style.transform = 'rotate(180deg)';
+          htmx.ajax('GET', '/results/job/' + jobId, {target: detailRow, swap: 'outerHTML'});
+        }
+      }
+    </script>
+    <script>
+      let locationTimer = null;
+
+      function debounceLocationSearch(query) {
+          clearTimeout(locationTimer);
+          if (query.length < 2) {
+              const suggestions = document.getElementById('location-suggestions');
+              if (suggestions) suggestions.classList.add('hidden');
+              return;
+          }
+          locationTimer = setTimeout(() => fetchLocations(query), 300);
+      }
+
+      async function fetchLocations(query) {
+          const list = document.getElementById('location-suggestions');
+          if (!list) return;
+
+          try {
+              const res = await fetch(
+                  'https://nominatim.openstreetmap.org/search?' + new URLSearchParams({
+                      q: query,
+                      format: 'json',
+                      addressdetails: 1,
+                      limit: 5,
+                      'accept-language': document.documentElement.lang || 'fr',
+                      featuretype: 'city',
+                  }),
+                  { headers: { 'User-Agent': 'Cvly/1.0' } }
+              );
+              const data = await res.json();
+              if (!data.length) {
+                  list.classList.add('hidden');
+                  return;
+              }
+              list.innerHTML = data.map(item => {
+                  const city = item.address.city || item.address.town || item.address.village || item.name;
+                  const country = item.address.country || '';
+                  const display = city + (country ? ', ' + country : '');
+                  return `<li onclick="selectLocation('${display.replace(/'/g, "\\'")}')"
+                              class="px-3 py-2 hover:bg-indigo-50 cursor-pointer border-b border-slate-100 last:border-0">
+                              <span class="font-medium text-slate-800">${city}</span>
+                              <span class="text-slate-400 text-xs ml-1">${country}</span>
+                          </li>`;
+              }).join('');
+              list.classList.remove('hidden');
+          } catch (e) {
+              list.classList.add('hidden');
+          }
+      }
+
+      function selectLocation(value) {
+          const input = document.getElementById('location-input');
+          const list = document.getElementById('location-suggestions');
+          if (input) input.value = value;
+          if (list) list.classList.add('hidden');
+      }
+
+      document.addEventListener('click', function(e) {
+          if (!e.target.closest('#location-input') && !e.target.closest('#location-suggestions')) {
+              const list = document.getElementById('location-suggestions');
+              if (list) list.classList.add('hidden');
+          }
+      });
+    </script>
+<script>
+function toggleEdit(btn) {
+    const area = document.getElementById('edit-area');
+    if (!area) return;
+    const isHidden = area.classList.toggle('hidden');
+    btn.textContent = isHidden ? btn.dataset.editLabel : btn.dataset.cancelLabel;
+}
+
+async function saveEdits(jobId) {
+    const textarea = document.getElementById('edit-cover-letter');
+    const display = document.getElementById('cover-letter-display');
+    if (!textarea || !display) return;
+
+    const newText = textarea.value;
+
+    // Save to server
+    await fetch(`/preview/${jobId}/save-edits`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cover_letter: newText }),
+    });
+
+    // Update display
+    display.textContent = newText;
+    document.getElementById('edit-area').classList.add('hidden');
+    const editBtn = document.querySelector('[onclick^="toggleEdit"]');
+    if (editBtn) editBtn.textContent = editBtn.dataset.editLabel;
+}
+
+function copyResume(btn) {
+    const content = document.getElementById('resume-content');
+    btn = btn || event.currentTarget;
+    if (content && btn) {
+        navigator.clipboard.writeText(content.innerText).then(() => {
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>`;
+            btn.classList.add('text-green-500');
+            btn.classList.remove('text-slate-400', 'hover:text-indigo-600');
+            setTimeout(() => {
+                btn.innerHTML = originalHTML;
+                btn.classList.remove('text-green-500');
+                btn.classList.add('text-slate-400', 'hover:text-indigo-600');
+            }, 2000);
+        });
+    }
+}
+</script>
 </body>
 </html>

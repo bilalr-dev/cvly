@@ -7,33 +7,104 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse
 from starlette.requests import Request
 
-from backend.state import app_state, templates
+from backend.state import app_state, get_translations, templates
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/results")
 
-def get_session_state() -> dict[str, Any]:
-    return {
-        "pipeline_run": len(app_state.get("pipeline_results", [])) > 0,
-        "jobs": app_state.get("pipeline_results", [])
-    }
-
 def get_job_by_id(job_id: str) -> dict[str, Any] | None:
     jobs = app_state.get("pipeline_results", [])
-    for job in jobs:
-        if job.get("id") == job_id:
-            return job
+    match_results = app_state.get("match_results", {})
+    for posting in jobs:
+        if posting.id == job_id:
+            match = match_results.get(posting.id)
+            atf = getattr(match, "atf_analysis", None) if match else None
+
+            matched_kw = list(getattr(match, "matched_keywords", [])) if match else []
+            missing_kw = list(getattr(match, "missing_keywords", [])) if match else []
+
+            if not matched_kw and atf and hasattr(atf, "skills"):
+                matched_kw = list(getattr(atf, "skills", []))
+
+            return {
+                "id": posting.id,
+                "company": posting.company,
+                "title": posting.title,
+                "location": posting.location,
+                "contract": getattr(posting, "contract_type", "") or "",
+                "url": posting.url,
+                "date_posted": getattr(posting, "date_posted", "") or "",
+                "source": posting.source,
+                "score": round(getattr(match, "overall_score", 0)) if match else 0,
+                "has_atf": bool(atf),
+                "description_text": posting.description_text,
+                "matched_keywords": matched_kw,
+                "missing_keywords": missing_kw,
+                "atf": {
+                    "summary": getattr(atf, "summary", ""),
+                    "seniority": getattr(atf, "seniority", ""),
+                    "recommendation": getattr(atf, "recommendation", ""),
+                    "strengths": list(getattr(atf, "strengths", [])),
+                    "weaknesses": list(getattr(atf, "weaknesses", [])),
+                    "risks": list(getattr(atf, "risks", [])),
+                } if atf else None,
+            }
     return None
 
 @router.get("", response_class=HTMLResponse)
 async def get_results(request: Request) -> HTMLResponse:
-    state = get_session_state()
-    logger.info("Accessing results page")
+    t = get_translations()
+    postings = app_state.get("pipeline_results", [])
+    match_results = app_state.get("match_results", {})
+
+    jobs_display = []
+    for posting in postings:
+        match = match_results.get(posting.id)
+        atf = getattr(match, "atf_analysis", None) if match else None
+
+        matched_kw = list(getattr(match, "matched_keywords", [])) if match else []
+        missing_kw = list(getattr(match, "missing_keywords", [])) if match else []
+
+        if not matched_kw and atf and hasattr(atf, "skills"):
+            matched_kw = list(getattr(atf, "skills", []))
+
+        jobs_display.append({
+            "id": posting.id,
+            "company": posting.company,
+            "title": posting.title,
+            "location": posting.location,
+            "contract": getattr(posting, "contract_type", "") or "",
+            "url": posting.url,
+            "date_posted": getattr(posting, "date_posted", "") or "",
+            "source": posting.source,
+            "score": round(getattr(match, "overall_score", 0)) if match else 0,
+            "has_atf": bool(atf),
+            "matched_keywords": matched_kw,
+            "missing_keywords": missing_kw,
+            "atf": {
+                "summary": getattr(atf, "summary", ""),
+                "seniority": getattr(atf, "seniority", ""),
+                "recommendation": getattr(atf, "recommendation", ""),
+                "strengths": list(getattr(atf, "strengths", [])),
+                "weaknesses": list(getattr(atf, "weaknesses", [])),
+                "risks": list(getattr(atf, "risks", [])),
+            } if atf else None,
+        })
+
+    jobs_display.sort(key=lambda j: j["score"], reverse=True)
+
+    logger.debug("Accessing results page")
+    last_approved = app_state.pop("last_approved", None)
     return templates.TemplateResponse(request=request, name="results.html", context={
         "request": request,
-        "pipeline_run": state["pipeline_run"],
-        "jobs": state.get("jobs", [])
+        "pipeline_run": len(postings) > 0,
+        "jobs": jobs_display,
+        "last_approved": last_approved,
+        "language": app_state.get("language", "fr"),
+        "t": t,
+        "active_page": "results",
+        "approved_jobs": app_state.get("approved_jobs", set())
     })
 
 @router.get("/job/{job_id}", response_class=HTMLResponse)
@@ -43,8 +114,11 @@ async def get_job_partial(request: Request, job_id: str) -> HTMLResponse:
         logger.warning("Job details not found for ID: %s", job_id)
         raise HTTPException(status_code=404, detail="Job not found")
 
-    logger.info("Serving job detail partial for ID: %s", job_id)
+    logger.debug("Serving job detail partial for ID: %s", job_id)
     return templates.TemplateResponse(request=request, name="partials/job_detail.html", context={
         "request": request,
-        "job": job
+        "job": job,
+        "language": app_state.get("language", "fr"),
+        "t": get_translations(),
+        "approved_jobs": app_state.get("approved_jobs", set())
     })

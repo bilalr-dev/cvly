@@ -5,6 +5,7 @@ from typing import Any
 
 from backend.prompts import COVER_LETTER_PROMPT
 from backend.services.gemini_llm import GeminiLLMService
+from backend.utils.constants import COVER_LETTER_CONVENTIONS
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,7 @@ async def generate_cover_letter(
 ) -> str:
 
     summary = getattr(resume, "summary", "No summary provided")
+    candidate_name = getattr(resume, "full_name", None) or getattr(resume, "name", None) or "N/A"
     achievements = []
 
     exps = getattr(resume, "experience", [])
@@ -54,9 +56,12 @@ async def generate_cover_letter(
         if match_info:
             strengths = getattr(match_info, "strengths", [])
 
+    conventions = COVER_LETTER_CONVENTIONS.get(language, COVER_LETTER_CONVENTIONS["en"])
+
     prompt = (COVER_LETTER_PROMPT
         .replace("{profile_type}", str(getattr(resume, "detected_profile", "experienced")))
         .replace("{language}", language)
+        .replace("{language_conventions}", conventions)
         .replace("{country}", country)
         .replace("{summary}", str(summary))
         .replace("{achievements}", " ".join(achievements))
@@ -65,6 +70,9 @@ async def generate_cover_letter(
         .replace("{alternance_rhythm}", alt_rhythm)
         .replace("{job_description}", " ".join([str(j) for j in jd_desc]))
         .replace("{strengths}", "N/A" if not strengths else " ".join([str(s) for s in strengths]))
+        .replace("{target_company}", str(getattr(jd, "company", "") or ""))
+        .replace("{target_title}", str(getattr(jd, "title", "") or ""))
+        .replace("{candidate_name}", str(candidate_name))
     )
 
-    return gemini_service.generate_content(prompt)
+    return gemini_service.generate_text(prompt, temperature=0.3)  # prevents content fabrication (reduced from 0.5)

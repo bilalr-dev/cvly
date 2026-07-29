@@ -1,0 +1,37 @@
+<div class="relative">
+  <button
+    hx-post="/settings/upload/reset"
+    hx-target="#upload-feedback"
+    hx-swap="innerHTML"
+    class="absolute top-0 right-0 w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 hover:bg-red-100 text-slate-400 hover:text-red-600 text-sm font-bold cursor-pointer border-none transition-colors"
+    title="{{ t.delete_resume }}"
+  >
+    ×
+  </button>
+  <div class="flex items-center gap-2.5 mb-3.5">
+    <div class="w-2 h-2 rounded-full bg-green-600"></div>
+    <div class="text-sm font-semibold text-green-800">{{ t.resume_parsed }}</div>
+  </div>
+  <div class="grid grid-cols-2 gap-3.5 gap-x-6 text-sm text-slate-700 mb-3.5">
+    <div>
+      <span class="text-slate-400">{{ t.resume_name_label }}</span>
+      <div class="font-semibold text-sm">{{ resume_summary.name if resume_summary.name else 'Prénom Nom' }}</div>
+    </div>
+    <div>
+      <span class="text-slate-400">{{ t.resume_profile_label }}</span>
+      <div class="font-semibold text-sm">{{ resume_summary.profile_type }}</div>
+    </div>
+    <div>
+      <span class="text-slate-400">{{ t.resume_skills_label }}</span>
+      <div class="font-semibold text-sm">{{ resume_summary.skills_count }} {{ t.skills_suffix }}</div>
+    </div>
+    <div>
+      <span class="text-slate-400">{{ t.resume_experience_label }}</span>
+      <div class="font-semibold text-sm">{{ resume_summary.experience_count }} {{ t.roles_suffix }}</div>
+    </div>
+    <div class="col-span-2">
+      <span class="text-slate-400">{{ t.resume_education_label }}</span>
+      <div class="font-semibold text-sm">{{ resume_summary.education }}</div>
+    </div>
+  </div>
+</div>

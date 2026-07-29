@@ -1,58 +1,166 @@
 {% extends "base.html" %}
-
 {% block content %}
-<div class="max-w-5xl mx-auto space-y-6">
-    <a href="/results" class="text-indigo-600 hover:underline text-sm flex items-center gap-1">← Back to Results</a>
-
-    <div class="flex items-center justify-between">
-        <div>
-            <h2 class="text-2xl font-bold">{{ job.title }}</h2>
-            <p class="text-slate-500">{{ job.company }}</p>
-        </div>
-        <div class="flex gap-2">
-            {% include "partials/score_badge.html" %}
-        </div>
-    </div>
-
-    <div class="bg-yellow-100 text-yellow-800 p-4 rounded-lg flex items-start gap-3 border border-yellow-200">
-        <svg class="w-5 h-5 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-        <div>
-            <p class="font-bold">Hallucination Risk</p>
-            <p class="text-sm">Please verify the tailored points for accuracy.</p>
-        </div>
-    </div>
-
-    <div class="grid grid-cols-2 gap-6 items-start">
-        <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-            <h3 class="font-bold mb-4 pb-2 border-b border-slate-100 text-lg text-slate-800">Original</h3>
-            <ul class="space-y-3 list-disc pl-5">
-                {% for bullet in job.original_bullets %}
-                <li class="text-sm text-slate-700">{{ bullet }}</li>
-                {% endfor %}
-            </ul>
-        </div>
-
-        <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm border-t-4 border-t-indigo-600">
-            <h3 class="font-bold mb-4 pb-2 border-b border-slate-100 text-lg flex justify-between items-center text-slate-800">
-                Tailored
-                <button hx-post="/preview/{{ job.id }}/regenerate" hx-swap="none" class="text-xs text-indigo-600 hover:bg-slate-50 px-2 py-1 rounded border border-indigo-200 font-medium">⟳ Regenerate</button>
-            </h3>
-            <ul class="space-y-3 list-disc pl-5">
-                {% for bullet in job.tailored_bullets %}
-                <li class="text-sm text-slate-700">{{ bullet }}</li>
-                {% endfor %}
-            </ul>
-        </div>
-    </div>
-
-    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-        <h3 class="font-bold mb-4 pb-2 border-b border-slate-100 text-lg text-slate-800">Cover Letter</h3>
-        <div class="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{{ job.cover_letter }}</div>
-    </div>
-
-    <div class="sticky bottom-0 bg-white p-4 border-t border-slate-200 shadow-lg flex justify-end gap-3 rounded-t-xl mt-4">
-        <button class="bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium py-2 px-4 rounded-lg transition-colors">Edit</button>
-        <button hx-post="/preview/{{ job.id }}/approve" hx-swap="none" class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-6 rounded-lg transition-colors">Approve</button>
-    </div>
+<div class="mb-4">
+    <a href="/results" class="text-sm text-indigo-600">← {{ t.back_to_results }}</a>
 </div>
+
+<div class="flex items-start justify-between mb-2 flex-wrap gap-3">
+    <div>
+        <h1 class="text-2xl font-bold">{{ job.title }}</h1>
+        {% if job.company == '__MISSING_COMPANY__' %}
+        <div class="text-base font-medium text-slate-400 italic mt-1">{{ t.get("company_not_specified", "Entreprise non précisée") }}</div>
+        {% else %}
+        <div class="text-base text-slate-500 mt-1">{{ job.company }}</div>
+        {% endif %}
+    </div>
+    <span class="px-3 py-1 rounded-full text-sm font-bold text-white
+        {% if job.score >= 80 %}bg-score-high{% elif job.score >= 60 %}bg-score-medium{% elif job.score >= 40 %}bg-score-low{% else %}bg-score-poor{% endif %}">
+        {{ job.score }}%
+    </span>
+</div>
+
+{% if error %}
+<div class="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-800 mb-6 flex items-start gap-2">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 flex-shrink-0">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+    </svg>
+    <span>{{ error }}</span>
+</div>
+{% endif %}
+
+{% if tailored %}
+    <div class="bg-amber-50 border border-amber-300 rounded-lg p-4 mb-6 text-sm text-amber-900 flex items-start gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 flex-shrink-0 text-amber-600 mt-0.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+        <p class="font-medium">{{ t.ai_disclaimer }}</p>
+    </div>
+    {% if tailored.warnings %}
+    <div class="bg-yellow-50 border border-yellow-300 rounded-xl p-4 mb-6">
+        <div class="font-semibold text-yellow-800 text-sm mb-1">{{ t.get("hallucination_section_title", "Points à vérifier") }}</div>
+        <div class="text-sm text-yellow-700">
+            {% for w in tailored.warnings %}
+            <div class="flex items-start gap-2 mb-1">
+                <span class="w-2 h-2 rounded-full flex-shrink-0 mt-1.5 {% if w.severity == 'HIGH' %}bg-red-500{% elif w.severity == 'MEDIUM' %}bg-amber-500{% else %}bg-yellow-400{% endif %}"></span>
+                <span>"<strong>{{ w.term }}</strong>" — {% if w.severity == 'HIGH' %}<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="inline w-4 h-4 text-red-500 -mt-0.5 mr-0.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>{% endif %}{{ w.context }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="mb-3">
+        <a href="{{ job.url }}" target="_blank" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium inline-flex items-center gap-1 transition-colors">
+            {{ t.original_posting }}
+        </a>
+    </div>
+    <div class="grid grid-cols-2 gap-5 mb-6">
+        <div class="bg-white border border-slate-200 rounded-xl p-5">
+            <h3 class="font-semibold text-base mb-3">Original</h3>
+            {% for pair in tailored.bullet_pairs %}
+            <div class="text-sm text-slate-600 leading-relaxed mb-3 pb-3 border-b border-slate-100 last:border-0">
+                {{ pair.original }}
+            </div>
+            {% endfor %}
+        </div>
+        <div class="bg-white border border-indigo-200 rounded-xl p-5">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="font-semibold text-base">{{ t.bullet_comparison }}</h3>
+                <form method="post" action="/preview/{{ job.id }}/regenerate">
+                    <button type="submit" class="flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-800 border border-indigo-200 hover:border-indigo-300 rounded-lg px-3 py-1.5 cursor-pointer bg-white transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                        </svg>
+                        {{ t.regenerate_btn }}
+                    </button>
+                </form>
+            </div>
+            {% for pair in tailored.bullet_pairs %}
+            <div class="text-sm text-slate-800 leading-relaxed mb-3 pb-3 border-b border-slate-100 last:border-0">
+                {{ pair.tailored }}
+                {% if pair.keywords_added %}
+                <div class="flex flex-wrap gap-1 mt-1.5">
+                    {% for kw in pair.keywords_added %}
+                    <span class="bg-yellow-100 text-yellow-800 text-xs px-2 py-0.5 rounded-full">{{ kw }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+            {% if tailored.unfillable_gaps %}
+            <div class="text-xs text-slate-400 mt-2">
+                {{ t.get("unfillable", "Mots-clés non intégrables :") }} {{ tailored.unfillable_gaps | join(", ") }}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="bg-white border border-slate-200 rounded-xl p-6 mb-6">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="font-semibold text-base">{{ t.get("cover_letter_title", "Lettre de motivation") }}</h3>
+            <button onclick="toggleEdit(this.querySelector('span'))" class="flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-800 border border-indigo-200 hover:border-indigo-300 rounded-lg px-3 py-1.5 cursor-pointer bg-white">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+                </svg>
+                <span data-edit-label="{{ t.get('edit_cover_letter', 'Modifier') }}" data-cancel-label="{{ t.get('cancel_edit', 'Annuler') }}">{{ t.get("edit_cover_letter", "Modifier") }}</span>
+            </button>
+        </div>
+
+        <!-- Display mode -->
+        <div class="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap" id="cover-letter-display">{{ tailored.cover_letter }}</div>
+
+        <!-- Edit mode -->
+        <div id="edit-area" class="hidden mt-4 pt-4 border-t border-slate-100">
+            <textarea id="edit-cover-letter"
+                      class="w-full border border-slate-300 rounded-lg p-3 text-sm font-mono h-64 resize-y focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                      >{{ tailored.cover_letter if tailored else "" }}</textarea>
+            <div class="mt-3 flex justify-end">
+                <button onclick="saveEdits('{{ job.id }}')"
+                        class="px-4 py-2 text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg border-none cursor-pointer flex items-center gap-1.5 shadow-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                    </svg>
+                    {{ t.get("save_edits", "Enregistrer les modifications") }}
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    {% if tailored and tailored.resume_markdown %}
+    <div class="bg-white border border-slate-200 rounded-xl p-6 mb-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold">{{ t.get("tailored_cv_title", "CV adapté") }}</h2>
+            <button onclick="copyResume(this)"
+                    title="{{ t.get('copy_cv', 'Copier le CV') }}"
+                    class="flex items-center justify-center text-slate-400 hover:text-indigo-600 border-none rounded p-1.5 cursor-pointer transition-colors bg-transparent">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" class="w-5 h-5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" />
+                </svg>
+            </button>
+        </div>
+        <div id="resume-content" class="prose prose-sm max-w-none text-slate-700">
+            {{ tailored.resume_markdown | safe }}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="flex items-center justify-end mt-8 mb-6">
+        <form action="/preview/{{ job.id }}/approve" method="post" style="display: inline;">
+            <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white border-none rounded-lg px-4 py-2 text-sm font-semibold cursor-pointer flex items-center gap-1.5 shadow-sm transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                </svg>
+                {{ t.get("approve_save", "Approuver et enregistrer") }}
+            </button>
+        </form>
+    </div>
+
+{% else %}
+    {% if not error %}
+    <div class="bg-white border border-slate-200 rounded-xl text-center py-16 text-slate-400">
+        {{ t.get("no_tailoring_data", "Aucune donnée de personnalisation disponible.") }}
+    </div>
+    {% endif %}
+{% endif %}
 {% endblock %}

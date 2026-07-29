@@ -11,7 +11,7 @@ router = APIRouter(prefix="/ws")
 @router.websocket("/progress")
 async def websocket_progress(websocket: WebSocket) -> None:
     await websocket.accept()
-    logger.info("WebSocket connection established")
+    logger.debug("WebSocket connection established")
 
     try:
         await websocket.send_json({"status": "connected"})

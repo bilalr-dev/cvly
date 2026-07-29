@@ -10,23 +10,10 @@ from backend.models import MatchResult, ParsedJobDescription, RawJobPosting
 
 logger = logging.getLogger(__name__)
 
-STATUS_VALUES = {
-    "fr": ["À postuler", "Postulé", "Entretien", "Refusé", "Offre"],
-    "en": ["To apply", "Applied", "Interview", "Rejected", "Offer"],
-}
-
-_HEADERS = {
-    "fr": [
-        "Date", "Entreprise", "Poste", "Localisation", "Type contrat",
-        "Score algo (0-100)", "Score recruteur (0-10)", "Mots-clés manquants",
-        "Statut", "URL", "CV fichier", "LM fichier", "Recommandation", "Notes",
-    ],
-    "en": [
-        "Date", "Company", "Title", "Location", "Contract type",
-        "Algo score (0-100)", "Recruiter score (0-10)", "Missing keywords",
-        "Status", "URL", "Resume file", "Cover letter file", "Recommendation", "Notes",
-    ],
-}
+from backend.utils.constants import (
+    SHEETS_TRACKER_HEADERS as _HEADERS,
+    SHEETS_TRACKER_STATUS_VALUES as STATUS_VALUES,
+)
 
 class SheetsTracker:
 
@@ -51,7 +38,7 @@ class SheetsTracker:
             self.sheet_id = spreadsheet.id
 
         self.worksheet = spreadsheet.get_worksheet(0)
-        logger.info(f"Connected to Google Sheet: {self.sheet_id}")
+        logger.debug(f"Connected to Google Sheet: {self.sheet_id}")
 
     def setup_headers(self, language: str = "fr") -> None:
         if self.worksheet is None:
@@ -108,4 +95,4 @@ class SheetsTracker:
         ]
 
         self.worksheet.append_row(row_data)
-        logger.info(f"Appended job row: {company} - {title}")
+        logger.debug(f"Appended job row: {company} - {title}")

@@ -31,7 +31,8 @@ async def parse_job_descriptions(
     results: list[ParsedJobDescription] = []
 
     for posting in postings:
-        if not posting.description_text:
+        if not posting.description_text or len(posting.description_text) < 100:
+            logger.warning("Skipping JD parse for %s — description too short", posting.id)
             continue
 
         await rate_limiter.acquire()

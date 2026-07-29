@@ -1,42 +1,114 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="w-full space-y-6">
-    <div class="flex items-center justify-between">
-        <h2 class="text-2xl font-bold">Results</h2>
-        <div class="flex items-center gap-2">
-            <button class="px-3 py-1.5 text-sm font-medium border border-slate-200 bg-white rounded flex items-center gap-2 hover:bg-slate-50 transition-colors">
-                <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg>
-                Filter
-            </button>
+    {% if last_approved %}
+    <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6 text-sm text-green-800">
+        ✓ {{ t.get("job_approved_msg", "Candidature approuvée") }} — <strong>{{ last_approved.title }}</strong> @
+        {% if last_approved.company == '__MISSING_COMPANY__' %}
+        <span class="italic opacity-80">{{ t.get("company_not_specified", "Entreprise non précisée") }}</span>
+        {% else %}
+        {{ last_approved.company }}
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <style>
+        .filter-pill {
+            background: white;
+            border-color: #cbd5e1;
+            color: #64748b;
+        }
+        .filter-pill:hover {
+            border-color: #818cf8;
+            color: #4f46e5;
+        }
+        .filter-pill.active {
+            background: #eef2ff;
+            border-color: #818cf8;
+            color: #4338ca;
+            font-weight: 500;
+        }
+    </style>
+
+    <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-3">
+            <h2 class="text-2xl font-bold">{{ t.results_title }}</h2>
+            <span id="filter-count" class="text-sm text-slate-400"></span>
         </div>
     </div>
 
+    <!-- sticky filter bar below heading -->
+    <div class="flex flex-wrap items-center gap-3 mb-6 text-sm">
+        <!-- Score filter pills -->
+        <span class="text-slate-500 font-medium mr-1">{{ t.get("filter_min_score", "Score minimum") }} :</span>
+
+        <button onclick="setScoreFilter(0, this)" data-filter="score"
+            class="filter-pill active px-3 py-1 rounded-full border cursor-pointer transition-colors">
+            {{ t.get("filter_all", "Tous") }}
+        </button>
+        <button onclick="setScoreFilter(40, this)" data-filter="score"
+            class="filter-pill px-3 py-1 rounded-full border cursor-pointer transition-colors">
+            40%+
+        </button>
+        <button onclick="setScoreFilter(60, this)" data-filter="score"
+            class="filter-pill px-3 py-1 rounded-full border cursor-pointer transition-colors">
+            60%+
+        </button>
+        <button onclick="setScoreFilter(80, this)" data-filter="score"
+            class="filter-pill px-3 py-1 rounded-full border cursor-pointer transition-colors">
+            80%+
+        </button>
+
+        <!-- Vertical divider -->
+        <span class="w-px h-5 bg-slate-300 mx-1"></span>
+
+        <!-- Status filter pills -->
+        <span class="text-slate-500 font-medium mr-1">{{ t.get("filter_status", "Statut") }} :</span>
+
+        <button onclick="setStatusFilter('all', this)" data-filter="status"
+            class="filter-pill active px-3 py-1 rounded-full border cursor-pointer transition-colors">
+            {{ t.get("filter_all", "Tous") }}
+        </button>
+        <button onclick="setStatusFilter('saved', this)" data-filter="status"
+            class="filter-pill px-3 py-1 rounded-full border cursor-pointer transition-colors">
+            ✓ {{ t.get("status_saved", "Sauvegardé") }}
+        </button>
+        <button onclick="setStatusFilter('pending', this)" data-filter="status"
+            class="filter-pill px-3 py-1 rounded-full border cursor-pointer transition-colors">
+            {{ t.get("status_pending", "À traiter") }}
+        </button>
+    </div>
+
     {% if not pipeline_run %}
-    <div class="bg-white p-12 rounded-xl border border-slate-200 shadow-sm text-center">
-        <div class="mx-auto w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-            <svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+    <div class="min-h-[60vh] flex items-center justify-center">
+        <div class="bg-white border border-slate-200 rounded-xl text-center py-20 px-10 w-full shadow-sm">
+            <div class="w-12 h-12 rounded-full bg-slate-100 mx-auto mb-4 flex items-center justify-center">
+                <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+            </div>
+            <h3 class="text-[15px] text-slate-600 mb-2 font-semibold">{{ t.empty_title }}</h3>
+            <p class="text-sm text-slate-400 mb-5">{{ t.empty_sub }}</p>
+            <a href="/" class="bg-indigo-600 hover:bg-indigo-700 text-white border-none rounded-lg font-semibold cursor-pointer px-5 py-2.5 inline-block transition-colors no-underline">{{ t.empty_link }}</a>
         </div>
-        <h3 class="text-lg font-bold text-slate-800 mb-2">No pipeline has run yet</h3>
-        <p class="text-slate-500 max-w-md mx-auto mb-6">Configure your settings and run the pipeline to discover matching jobs tailored to your resume.</p>
-        <a href="/" class="inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-lg transition-colors">Go to Dashboard</a>
     </div>
     {% elif not jobs %}
-    <div class="bg-white p-12 rounded-xl border border-slate-200 shadow-sm text-center">
-        <h3 class="text-lg font-bold text-slate-800">No jobs match your criteria.</h3>
-        <p class="text-slate-500 mt-2">Try relaxing your location radius or seniority levels.</p>
+    <div class="min-h-[60vh] flex items-center justify-center">
+        <div class="bg-white border border-slate-200 rounded-xl text-center py-20 px-10 w-full shadow-sm">
+            <h3 class="text-[15px] text-slate-600 mb-2 font-semibold">{{ t.empty_title }}</h3>
+            <p class="text-sm text-slate-400">{{ t.empty_results_msg }}</p>
+        </div>
     </div>
     {% else %}
-    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+    <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
         <table class="w-full text-left border-collapse text-sm">
             <thead>
                 <tr class="bg-slate-50 border-b border-slate-200 text-slate-600">
-                    <th class="p-4 font-semibold w-1/4">Company</th>
-                    <th class="p-4 font-semibold w-1/4">Title</th>
+                    <th class="p-4 font-semibold w-1/4">{{ t.col_company }}</th>
+                    <th class="p-4 font-semibold w-1/4">{{ t.col_title }}</th>
                     <th class="p-4 font-semibold">Match</th>
-                    <th class="p-4 font-semibold">Location</th>
-                    <th class="p-4 font-semibold">Contract</th>
-                    <th class="p-4 font-semibold">Actions</th>
+                    <th class="p-4 font-semibold">{{ t.col_location }}</th>
+                    <th class="p-4 font-semibold">{{ t.col_contract }}</th>
+                    <th class="p-4 font-semibold">{{ t.get("col_status", "Statut") }}</th>
+                    <th class="p-4 font-semibold">{{ t.col_actions }}</th>
                 </tr>
             </thead>
             <tbody>
@@ -47,5 +119,61 @@
         </table>
     </div>
     {% endif %}
-</div>
+
+<script>
+let currentMinScore = 0;
+let currentStatus = 'all';
+
+function setScoreFilter(min, el) {
+    currentMinScore = min;
+    document.querySelectorAll('[data-filter="score"]').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+    applyFilters();
+}
+
+function setStatusFilter(status, el) {
+    currentStatus = status;
+    document.querySelectorAll('[data-filter="status"]').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+    applyFilters();
+}
+
+function applyFilters() {
+    document.querySelectorAll('tbody tr[data-score]').forEach(row => {
+        const score = parseInt(row.dataset.score || '0');
+        const isSaved = row.dataset.saved === 'true';
+
+        let show = true;
+        if (score < currentMinScore) show = false;
+        if (currentStatus === 'saved' && !isSaved) show = false;
+        if (currentStatus === 'pending' && isSaved) show = false;
+
+        row.style.display = show ? '' : 'none';
+
+        // Also hide/show the corresponding detail row if it's expanded
+        const detailsRowId = row.id ? row.id.replace('row-', 'details-') : '';
+        if (detailsRowId) {
+             const dr = document.getElementById(detailsRowId);
+             if (dr && dr.classList.contains('hidden') === false && !show) {
+                  dr.style.display = 'none';
+             } else if (dr && dr.classList.contains('hidden') === false && show) {
+                  dr.style.display = '';
+             }
+        }
+    });
+
+    // Update visible count
+    const visible = document.querySelectorAll('tbody tr[data-score]:not([style*="display: none"])').length;
+    const total = document.querySelectorAll('tbody tr[data-score]').length;
+    const counter = document.getElementById('filter-count');
+    if (counter) {
+        counter.textContent = visible === total ? '' : visible + ' / ' + total;
+    }
+}
+
+// Initial calculation on page load
+document.addEventListener("DOMContentLoaded", function() {
+    applyFilters();
+});
+</script>
 {% endblock %}

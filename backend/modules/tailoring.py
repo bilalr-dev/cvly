@@ -1,13 +1,69 @@
+"""Module 5: CV bullet rewriting with two-stage keyword validation.
+
+Stage 1 (analyse_keywords): Classifies missing keywords as applicable
+or unfillable using LLM at temperature 0.0. No rewriting.
+Stage 2 (rewrite_bullets): Rewrites bullets using only validated keywords
+at temperature 0.2.
+
+Ref: CoVe (Meta 2024), Grounded Optimization (arXiv:2607.01457)
+"""
 from __future__ import annotations
 
 import logging
 from typing import Any
 
 from backend.models import TailoredOutput
-from backend.prompts import BULLET_REWRITE_PROMPT
+from backend.models.tailoring import KeywordAnalysisResult
+from backend.prompts import BULLET_REWRITE_PROMPT, KEYWORD_ANALYSIS_PROMPT
 from backend.services.gemini_llm import GeminiLLMService
 
 logger = logging.getLogger(__name__)
+
+async def analyse_keywords(
+    resume: Any,
+    missing_keywords: list[str],
+    gemini_service: GeminiLLMService,
+) -> KeywordAnalysisResult:
+    """Stage 1: Classify missing keywords as applicable or unfillable.
+
+    Uses temperature 0.0 for deterministic classification.
+    No rewriting — pure keyword-to-CV evidence matching.
+    Ref: CoVe (Meta 2024), Grounded Optimization L4.
+    """
+    if not missing_keywords:
+        return KeywordAnalysisResult(applicable=[], unfillable_gaps=[], classifications=[])
+
+    # Build CV content from experience bullets + academic projects
+    cv_parts = []
+    for exp in (getattr(resume, "experience", []) or []):
+        for bullet in (getattr(exp, "bullets", []) or []):
+            if isinstance(bullet, str):
+                cv_parts.append(bullet)
+    for proj in (getattr(resume, "academic_projects", []) or []):
+        desc = getattr(proj, "description", "")
+        if desc:
+            cv_parts.append(str(desc))
+
+    # Build skills list
+    skills_parts = []
+    skills_obj = getattr(resume, "skills", None)
+    if skills_obj:
+        for attr in ["technical", "tools", "certifications"]:
+            for s in (getattr(skills_obj, attr, []) or []):
+                if isinstance(s, str):
+                    skills_parts.append(s)
+
+    prompt = (KEYWORD_ANALYSIS_PROMPT
+        .replace("{cv_content}", "\n".join(cv_parts) if cv_parts else "No experience bullets available.")
+        .replace("{skills_list}", ", ".join(skills_parts) if skills_parts else "No skills listed.")
+        .replace("{missing_keywords}", ", ".join(missing_keywords))
+    )
+
+    return gemini_service.generate_json(
+        prompt=prompt,
+        response_schema=KeywordAnalysisResult,
+        temperature=0.0,  # deterministic classification restricts creativity
+    )
 
 async def rewrite_bullets(
     resume: Any,
@@ -52,9 +108,18 @@ async def rewrite_bullets(
                 alt_rhythm = str(e.alternance_rhythm)
                 break
 
+    # filter validated keywords for rewrite prompt
+    analysis_result = await analyse_keywords(
+        resume=resume,
+        missing_keywords=miss_keys,
+        gemini_service=gemini_service,
+    )
+    validated_keywords = analysis_result.applicable
+
+    # Stage 2: rewrite bullets with validated keywords only
     prompt = (BULLET_REWRITE_PROMPT
         .replace("{original_bullets}", " ".join(orig_bullets))
-        .replace("{missing_keywords}", " ".join(miss_keys))
+        .replace("{missing_keywords}", ", ".join(validated_keywords) if validated_keywords else "None — do not add any keywords not already present in the original bullets.")
         .replace("{key_responsibilities}", " ".join(key_resp))
         .replace("{profile_type}", str(getattr(resume, "detected_profile", "experienced")))
         .replace("{language}", language)
@@ -68,5 +133,5 @@ async def rewrite_bullets(
     return gemini_service.generate_json(
         prompt=prompt,
         response_schema=TailoredOutput,
-        temperature=0.3
+        temperature=0.2  # prevents creative drift
     )
