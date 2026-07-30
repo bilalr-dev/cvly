@@ -1,3 +1,4 @@
+"""JSearch (RapidAPI) job board client."""
 from __future__ import annotations
 
 import logging
@@ -46,7 +47,7 @@ class JSearchClient(BaseJobAPIClient):
                 if getattr(preferences, "titles", None):
                     query_parts.append(" ".join(preferences.titles))
                 if getattr(preferences, "location", None):
-                    loc = preferences.location.split(',')[0].strip()
+                    loc = preferences.location.split(",")[0].strip()
                     query_parts.append(f"in {loc}")
 
                 params = {

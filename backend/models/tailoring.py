@@ -1,3 +1,4 @@
+"""Pydantic models for CV tailoring outputs."""
 from __future__ import annotations
 
 from typing import Literal

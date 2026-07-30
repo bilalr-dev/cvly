@@ -1,3 +1,5 @@
+"""Pipeline orchestration: job discovery, parsing, scoring, and ATF analysis."""
+
 import logging
 import re
 import time
@@ -25,10 +27,10 @@ from backend.services.rate_limiter import AsyncRateLimiter
 from backend.state import app_state, get_translations, save_pipeline_data, templates
 from backend.utils.constants import (
     ALTERNANCE_KEYWORDS,
-    PipelineStatus,
     SENIORITY_KEYWORDS,
     TITLE_CONTRACT_SIGNALS,
     TITLE_RELEVANCE_STOPWORDS,
+    PipelineStatus,
 )
 
 logger = logging.getLogger(__name__)
@@ -130,7 +132,7 @@ def _filter_by_seniority(postings: list, prefs_data: dict) -> list:
             excluded_keywords.update(keywords)
 
     excluded_patterns = [
-        re.compile(r'\b' + re.escape(kw) + r'\b', re.IGNORECASE)
+        re.compile(r"\b" + re.escape(kw) + r"\b", re.IGNORECASE)
         for kw in excluded_keywords
     ]
 
@@ -195,12 +197,12 @@ def _filter_by_contract(postings: list, selected_contracts: list) -> list:
 
         # Step 4: Decision
         if effective_type:
-            # We know the type — keep only if it matches selection
+            # We know the type: keep only if it matches selection
             if effective_type in selected_lower:
                 filtered.append(p)
-            # else: skip — type doesn't match
+            # else: skip; type doesn't match
         else:
-            # Unknown type — benefit of the doubt, keep it
+            # Unknown type: benefit of the doubt, keep it
             filtered.append(p)
 
     logger.debug("Contract filter: %d → %d", len(postings), len(filtered))
@@ -284,7 +286,6 @@ async def _parse_job_descriptions(postings: list, gemini_service: GeminiLLMServi
 
             parsed_jds[posting.id] = parsed_jd
             app_state["parsed_jds"] = parsed_jds
-            save_pipeline_data()
         except GeminiAPIError as e:
             logger.warning("Failed to parse JD for %s: %s", posting.id, e)
             continue
@@ -293,7 +294,7 @@ async def _parse_job_descriptions(postings: list, gemini_service: GeminiLLMServi
     return parsed_jds
 
 
-def _patch_company_names(postings: list, parsed_jds: dict, language: str) -> list:
+def _patch_company_names(postings: list, parsed_jds: dict) -> list:
     """Patch missing company names directly into standard raw jobs list."""
     for i, posting in enumerate(postings):
         if not posting.company or posting.company.strip() == "":
@@ -394,7 +395,7 @@ async def execute_pipeline() -> None:
         )
         raw_count = len(postings)
 
-        # Skip jobs the user already approved — no need to re-process
+        # Skip jobs the user already approved; no need to re-process
         approved = app_state.get("approved_jobs", set())
         previous_by_id = {p.id: p for p in app_state.get("pipeline_results", [])}
         previous_matches = dict(app_state.get("match_results", {}))
@@ -442,7 +443,7 @@ async def execute_pipeline() -> None:
 
         # Stage 5: Patch company names
         language = prefs_data.get("language", "fr")
-        postings = _patch_company_names(postings, parsed_jds, language)
+        postings = _patch_company_names(postings, parsed_jds)
 
         # Stage 6: Score matches
         app_state["pipeline_step"] = 4
@@ -519,7 +520,7 @@ async def run_pipeline(request: Request, background_tasks: BackgroundTasks) -> H
         )
 
     import time
-    app_state["pipeline_status"] = "running"
+    app_state["pipeline_status"] = PipelineStatus.RUNNING
     app_state["pipeline_start_time"] = time.time()
     app_state["pipeline_step"] = 1
     app_state["pipeline_total_steps"] = 5
@@ -540,14 +541,14 @@ async def run_pipeline(request: Request, background_tasks: BackgroundTasks) -> H
 
 @router.post("/reset")
 async def reset_pipeline() -> HTMLResponse:
-    app_state["pipeline_status"] = "idle"
+    app_state["pipeline_status"] = PipelineStatus.IDLE
     app_state["pipeline_step"] = 0
     app_state["pipeline_step_detail"] = ""
     t = get_translations()
     return HTMLResponse(
         content=f'''<div class="flex items-center gap-3.5">
             <button hx-post="/pipeline/run" hx-target="#pipeline-status" hx-swap="innerHTML"
-                    class="bg-indigo-600 hover:bg-indigo-700 text-white border-none rounded-lg px-5 py-3 text-[15px] font-semibold cursor-pointer">
+                    class="btn-primary px-5 py-3 text-[15px]">
                 {t.get("run_pipeline", "Run Pipeline")}
             </button>
         </div>''',
@@ -557,7 +558,7 @@ async def reset_pipeline() -> HTMLResponse:
 @router.get("/progress")
 async def get_progress(request: Request) -> HTMLResponse:
     t = get_translations()
-    status = app_state.get("pipeline_status", "idle")
+    status = app_state.get("pipeline_status", PipelineStatus.IDLE)
     step = app_state.get("pipeline_step", 0)
 
     step_labels = {
@@ -568,7 +569,7 @@ async def get_progress(request: Request) -> HTMLResponse:
         5: t.get("step_tailoring", "Tailoring CVs..."),
     }
 
-    if status == "complete":
+    if status == PipelineStatus.COMPLETE:
         job_count = len(app_state.get("pipeline_results", []))
         duration = app_state.get("pipeline_duration") or 0
         minutes, seconds = divmod(int(duration), 60)
@@ -577,12 +578,12 @@ async def get_progress(request: Request) -> HTMLResponse:
             content=f'''
             <div class="bg-green-50 border border-green-200 rounded-lg p-4 text-sm text-green-800"
                  hx-get="/" hx-trigger="load delay:2s" hx-target="body" hx-swap="outerHTML" hx-push-url="true">
-                ✓ {t.get("pipeline_complete", "Pipeline complete")} — {job_count} {t.get("jobs_found_suffix", "jobs found")} ({dur_str})
+                ✓ {t.get("pipeline_complete", "Pipeline complete")}: {job_count} {t.get("jobs_found_suffix", "jobs found")} ({dur_str})
             </div>''',
             status_code=200,
         )
 
-    if status == "error":
+    if status == PipelineStatus.ERROR:
         return HTMLResponse(
             content=f'<div class="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-800">{t.get("error_pipeline", "Pipeline failed.")}</div>',
             status_code=200,

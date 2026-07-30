@@ -1,3 +1,4 @@
+"""Gemini text embedding service wrapper."""
 from __future__ import annotations
 
 import google.generativeai as genai

@@ -26,30 +26,39 @@
     <td class="p-4">
         <div class="flex items-center gap-2 flex-nowrap">
             <button onclick="toggleJobDetails(this, '{{ job.id }}')"
-                    class="text-slate-400 hover:text-indigo-600 p-1 rounded bg-white border border-slate-200 shadow-sm hover:shadow cursor-pointer transition-transform shrink-0"
+                    class="btn-icon transition-transform"
+                    aria-label="{{ t.get('expand_details', 'Voir détails') }}"
                     title="{{ t.get('action_expand', 'Voir les détails') }}"
                     data-expanded="false">
-                <svg class="w-3.5 h-3.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                <svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </button>
             <a href="/preview/{{ job.id }}"
-               class="text-slate-400 hover:text-green-600 p-1 rounded bg-white border border-slate-200 shadow-sm hover:shadow shrink-0"
+               class="btn-icon hover:text-green-600"
+               aria-label="{{ t.get('edit_job', 'Modifier') }}"
                title="{{ t.get('action_tailor', 'Adapter le CV') }}">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
             </a>
-            <button class="text-slate-400 hover:text-red-600 p-1 rounded bg-white border border-slate-200 shadow-sm hover:shadow cursor-pointer shrink-0"
+            <button hx-post="/results/{{ job.id }}/skip"
+                    hx-target="#row-{{ job.id }}"
+                    hx-swap="outerHTML"
+                    hx-on::after-request="document.getElementById('details-{{ job.id }}')?.remove()"
+                    class="btn-icon hover:text-red-600"
+                    aria-label="{{ t.get('skip_job', 'Ignorer') }}"
                     title="{{ t.get('action_skip', 'Ignorer') }}">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
             </button>
             {% if job.id in approved_jobs %}
             <a href="/preview/{{ job.id }}/view/resume" target="_blank"
-               class="text-indigo-600 hover:text-indigo-800 p-1 rounded bg-white border border-slate-200 shadow-sm hover:shadow shrink-0"
+               class="btn-icon text-indigo-600 hover:text-indigo-800"
+               aria-label="{{ t.get('view_cv', 'Voir CV') }}"
                title="{{ t.get('view_cv', 'Voir CV') }}">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
             </a>
             <a href="/preview/{{ job.id }}/view/cover" target="_blank"
-               class="text-indigo-600 hover:text-indigo-800 p-1 rounded bg-white border border-slate-200 shadow-sm hover:shadow shrink-0"
+               class="btn-icon text-indigo-600 hover:text-indigo-800"
+               aria-label="{{ t.get('view_cover', 'Voir lettre') }}"
                title="{{ t.get('view_cover', 'Voir lettre') }}">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0-7.5 4.875a2.25 2.25 0 0 1-2.5 0L2.25 6.75"/></svg>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0-7.5 4.875a2.25 2.25 0 0 1-2.5 0L2.25 6.75"/></svg>
             </a>
             {% endif %}
         </div>

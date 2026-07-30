@@ -1,3 +1,4 @@
+"""Gemini LLM service wrapper for JSON and text generation."""
 from __future__ import annotations
 
 import json

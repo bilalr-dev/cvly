@@ -6,6 +6,7 @@ from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 from starlette.requests import Request
 
+from backend.config import get_settings
 from backend.state import app_state, get_translations, templates
 
 logger = logging.getLogger(__name__)
@@ -14,7 +15,6 @@ router = APIRouter()
 
 @router.get("/", response_class=HTMLResponse)
 async def get_dashboard(request: Request) -> HTMLResponse:
-    """Render the main dashboard."""
     t = get_translations()
     pipeline_results = app_state.get("pipeline_results", [])
     match_results = app_state.get("match_results", {})
@@ -47,6 +47,12 @@ async def get_dashboard(request: Request) -> HTMLResponse:
         pipeline_duration_str = ""
 
     logger.debug("Dashboard accessed. Showing %d jobs.", jobs_count)
+    settings = get_settings()
+    sheet_url = (
+        f"https://docs.google.com/spreadsheets/d/{settings.google_sheet_id}/edit"
+        if settings.google_sheet_id
+        else None
+    )
     return templates.TemplateResponse(request=request, name="dashboard.html", context={
         "request": request,
         "last_run": last_run_display,
@@ -63,5 +69,5 @@ async def get_dashboard(request: Request) -> HTMLResponse:
         "step_detail": app_state.get("pipeline_step_detail", ""),
         "active_page": "dashboard",
         "pipeline_status": app_state.get("pipeline_status", "idle"),
-        "sheet_connected": bool(app_state.get("preferences"))
+        "sheet_url": sheet_url,
     })

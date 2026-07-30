@@ -1,3 +1,4 @@
+"""Module 3: job description parsing via Gemini."""
 from __future__ import annotations
 
 import logging
@@ -32,7 +33,7 @@ async def parse_job_descriptions(
 
     for posting in postings:
         if not posting.description_text or len(posting.description_text) < 100:
-            logger.warning("Skipping JD parse for %s — description too short", posting.id)
+            logger.warning("Skipping JD parse for %s: description too short", posting.id)
             continue
 
         await rate_limiter.acquire()

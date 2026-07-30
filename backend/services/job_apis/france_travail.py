@@ -1,3 +1,4 @@
+"""France Travail (Pôle Emploi) job board API client."""
 from __future__ import annotations
 
 import logging
@@ -7,11 +8,11 @@ import aiohttp
 
 from backend.models.job import RawJobPosting
 from backend.models.preferences import SearchPreferences
+from backend.services.rate_limiter import AsyncRateLimiter
+from backend.utils.constants import CITY_INSEE_CODES, FT_CONTRACT_TYPE_SIGNALS
 from backend.utils.dedup import generate_posting_id
 
 from .base import BaseJobAPIClient
-from backend.services.rate_limiter import AsyncRateLimiter
-from backend.utils.constants import CITY_INSEE_CODES, FT_CONTRACT_TYPE_SIGNALS
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +43,7 @@ class FranceTravailClient(BaseJobAPIClient):
                     data = await response.json(content_type=None)
                     self.access_token = data.get("access_token")
                     if not self.access_token:
-                        logger.warning("France Travail auth failed — HTTP %d — response: %s", response.status, data)
+                        logger.warning("France Travail auth failed (HTTP %d): %s", response.status, data)
         except aiohttp.ClientError as exc:
             logger.warning("France Travail auth connection error: %s: %s", type(exc).__name__, exc)
         except Exception as exc:
@@ -110,7 +111,7 @@ class FranceTravailClient(BaseJobAPIClient):
                     if response.status not in (200, 206):
                         body = await response.text()
                         logger.warning(
-                            "France Travail search HTTP %d — body: %.500s", response.status, body
+                            "France Travail search HTTP %d, body: %.500s", response.status, body
                         )
                         return []
 

@@ -1,7 +1,7 @@
+"""Shared constants, enums, keyword maps, and configuration values."""
 from __future__ import annotations
 
 from enum import StrEnum
-
 
 # UI limits and logic
 MIN_BULLET_LENGTH: int = 25
@@ -11,14 +11,14 @@ MAX_ROLES_LIMIT: int = 999
 # Language Detection
 FRENCH_DETECTION_WORDS: list[str] = [" est ", " sont ", " avec ", " dans ", " pour ", " une ", " les ", " des ", " par ", " sur ", " au ", " du ", " ce ", " qui ", " que "]
 
-# Hallucination checker — words too common to be flagged as fabricated tech terms.
+# Hallucination checker: words too common to be flagged as fabricated tech terms.
 HALLUCINATION_COMMON_WORDS: frozenset[str] = frozenset([
     "the", "and", "or", "for", "with", "from", "to", "in", "on", "at",
     "by", "a", "an", "is", "of", "le", "la", "les", "des", "pour",
     "avec", "dans", "et", "ou", "en", "sur", "au", "aux"
 ])
 
-# Hallucination checker — short abbreviations that must be present verbatim in the original CV.
+# Hallucination checker: short abbreviations that must be present verbatim in the original CV.
 HALLUCINATION_SHORT_TECH_NAMES: frozenset[str] = frozenset([
     "go", "r", "c", "c#", "c++", "ai", "ml", "qa", "ux", "ui", "ci", "cd", "js", "ts"
 ])
@@ -99,7 +99,7 @@ LANG_NAMES_EN_TO_FR: dict[str, str] = {
 }
 
 # Deterministic proficiency level translations (EN → FR)
-# CEFR codes (A1, A2, B1, B2, C1, C2) are NOT translated — they stay as-is
+# CEFR codes (A1, A2, B1, B2, C1, C2) are NOT translated; they stay as-is
 PROFICIENCY_EN_TO_FR: dict[str, str] = {
     "native": "Natif", "bilingual": "Bilingue", "fluent": "Courant",
     "advanced": "Avancé", "intermediate": "Intermédiaire",
@@ -279,12 +279,12 @@ SEVERITY_LABELS: dict[str, dict[str, str]] = {
     "fr": {
         "HIGH": "À corriger avant d'envoyer",
         "MEDIUM": "À vérifier avant d'envoyer",
-        "LOW": "Point mineur — à votre appréciation",
+        "LOW": "Point mineur, à votre appréciation",
     },
     "en": {
         "HIGH": "Fix this before sending",
         "MEDIUM": "Check this before sending",
-        "LOW": "Minor point — your call",
+        "LOW": "Minor point, your call",
     },
 }
 
@@ -389,7 +389,6 @@ TRANSLATIONS = {
         "no_atf_available": "Aucune analyse ATF disponible pour cette offre.",
         "seniority_label": "Séniorité",
         "recommendation_label": "Recommandation",
-
         "hallucination_section_title": "Points à vérifier",
         "edit_cover_letter": "Modifier",
         "unfillable": "Mots-clés non intégrables :",
@@ -420,6 +419,14 @@ TRANSLATIONS = {
         "filter_status": "Statut",
         "filter_all": "Tous",
         "company_not_specified": "Entreprise non précisée",
+        "pipeline_running_warning": "Pipeline en cours",
+        "stay_on_page": "Rester sur la page",
+        "leave_anyway": "Quitter quand même",
+        "original_bullets": "Original",
+        "col_match": "Match",
+        "expand_details": "Voir détails",
+        "edit_job": "Modifier",
+        "skip_job": "Ignorer",
     },
     "en": {
         "nav_dashboard": "Dashboard",
@@ -551,5 +558,13 @@ TRANSLATIONS = {
         "filter_status": "Status",
         "filter_all": "All",
         "company_not_specified": "Company not specified",
+        "pipeline_running_warning": "Pipeline running",
+        "stay_on_page": "Stay on page",
+        "leave_anyway": "Leave anyway",
+        "original_bullets": "Original",
+        "col_match": "Match",
+        "expand_details": "Expand details",
+        "edit_job": "Edit",
+        "skip_job": "Skip",
     },
 }

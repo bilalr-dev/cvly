@@ -1,3 +1,4 @@
+"""Base interface for job board API clients."""
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

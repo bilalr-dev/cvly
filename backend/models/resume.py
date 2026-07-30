@@ -1,3 +1,4 @@
+"""Pydantic models for parsed resume profiles."""
 from __future__ import annotations
 
 from typing import Literal

@@ -1,27 +1,50 @@
+"""Preview and approve tailored CVs and cover letters."""
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from pathlib import Path
 from typing import Any
 
+import markdown as md_lib
+import nh3
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
-import markdown as md_lib
 
 from backend.config import get_settings
 from backend.modules.cover_letter import generate_cover_letter
 from backend.modules.evaluator_agent import evaluate_tailored_output
 from backend.modules.hallucination_checker import check_hallucinations
-from backend.modules.output_generator import generate_output_filename, generate_resume_markdown_raw
+from backend.modules.output_generator import (
+    generate_output_filename,
+    generate_resume_markdown_raw,
+)
 from backend.modules.tailoring import rewrite_bullets
 from backend.prompts import TRANSLATION_PROMPT
 from backend.services.gemini_llm import GeminiAPIError, GeminiLLMService
 from backend.state import app_state, get_translations, save_pipeline_data, templates
-from backend.utils.constants import FRENCH_DETECTION_WORDS, MIN_BULLET_LENGTH, SEVERITY_LABELS, VIOLATION_LABELS
+from backend.utils.constants import (
+    FRENCH_DETECTION_WORDS,
+    MIN_BULLET_LENGTH,
+    SEVERITY_LABELS,
+    VIOLATION_LABELS,
+)
 
 logger = logging.getLogger(__name__)
+
+_ALLOWED_TAGS = {
+    "h1", "h2", "h3", "h4", "p", "br", "ul", "ol", "li",
+    "strong", "em", "a", "code", "pre", "hr", "table",
+    "thead", "tbody", "tr", "th", "td", "span", "div",
+}
+_ALLOWED_ATTRIBUTES = {"a": {"href", "target"}, "span": {"class"}, "div": {"class"}}
+
+
+def _sanitize_html(html: str) -> str:
+    """Remove script tags and dangerous attributes from LLM-generated HTML."""
+    return nh3.clean(html, tags=_ALLOWED_TAGS, attributes=_ALLOWED_ATTRIBUTES)
 
 
 def _is_valid_bullet(text: str) -> bool:
@@ -33,7 +56,7 @@ def _is_valid_bullet(text: str) -> bool:
     if len(text) < MIN_BULLET_LENGTH:
         return False
     # Starts with a lowercase tech keyword pattern (no verb)
-    if re.match(r'^[a-z][\w\s\-\.]*$', text) and len(text.split()) <= 5:
+    if re.match(r"^[a-z][\w\s\-\.]*$", text) and len(text.split()) <= 5:
         return False
     return True
 
@@ -54,7 +77,7 @@ def _translate(gemini: GeminiLLMService, content: str, target_language: str) -> 
 
 def _translate_markers(text: str, gemini: GeminiLLMService, target_language: str) -> str:
     """Find all __TRANSLATE__...__ markers and translate them in one batch call."""
-    pattern = re.compile(r'__TRANSLATE__(.*?)__', re.DOTALL)
+    pattern = re.compile(r"__TRANSLATE__(.*?)__", re.DOTALL)
     matches = pattern.findall(text)
 
     if not matches:
@@ -69,7 +92,7 @@ def _translate_markers(text: str, gemini: GeminiLLMService, target_language: str
         )
         raw = gemini.generate_text(batch_prompt, temperature=0.0)
         parts = raw.split("---")
-        translated = [re.sub(r'^\s*\d+\.\s*', '', p.strip()) for p in parts]
+        translated = [re.sub(r"^\s*\d+\.\s*", "", p.strip()) for p in parts]
 
         # Pad if needed
         while len(translated) < len(matches):
@@ -167,7 +190,7 @@ async def _run_evaluator(tailored_output: Any, gemini: GeminiLLMService, job_des
         eval_warnings.append({
             "term": human_label,
             "severity": v.severity,
-            "context": f"{human_severity} — {v.description}",
+            "context": f"{human_severity}: {v.description}",
         })
     return eval_warnings
 
@@ -216,6 +239,64 @@ def _preview_context(request: Request, job: dict, language: str, t: dict, tailor
     }
 
 
+def _translate_full_document(
+    resume_md_raw: str,
+    gemini: GeminiLLMService,
+    lang_name: str,
+) -> str:
+    """Translate the entire markdown document when no bullets were rewritten."""
+    translation_prompt_text = (TRANSLATION_PROMPT
+        .replace("{target_language}", lang_name)
+        .replace("{content}", resume_md_raw)
+    )
+    try:
+        return gemini.generate_text(translation_prompt_text, temperature=0.0)
+    except GeminiAPIError as e:
+        logger.warning("Document translation failed, using markers: %s", e)
+        return resume_md_raw
+
+
+def _translate_summary_and_skills(
+    resume: Any,
+    tailored_data: dict,
+    gemini: GeminiLLMService,
+    lang_name: str,
+) -> None:
+    """Translate summary and soft skills in-place in tailored_data."""
+    items = [resume.summary or ""]
+    soft_skills = list(getattr(resume.skills, "soft", []) or [])
+    for skill in soft_skills:
+        items.append(getattr(skill, "name", "") or "")
+        items.append(getattr(skill, "description", "") or "")
+
+    if not any(items):
+        return
+
+    batch = "\n---ITEM---\n".join(items)
+    batch_prompt = (TRANSLATION_PROMPT
+        .replace("{target_language}", lang_name)
+        .replace("{content}", batch)
+    )
+    try:
+        translated_batch = gemini.generate_text(batch_prompt, temperature=0.0)
+        parts = translated_batch.split("---ITEM---")
+        while len(parts) < len(items):
+            parts.append(items[len(parts)])
+
+        tailored_data["translated_summary"] = parts[0].strip()
+        translated_soft = []
+        for i, skill in enumerate(soft_skills):
+            name_idx = 1 + (i * 2)
+            desc_idx = 2 + (i * 2)
+            translated_soft.append({
+                "name": parts[name_idx].strip() if name_idx < len(parts) else getattr(skill, "name", ""),
+                "description": parts[desc_idx].strip() if desc_idx < len(parts) else getattr(skill, "description", ""),
+            })
+        tailored_data["translated_soft_skills"] = translated_soft
+    except GeminiAPIError as e:
+        logger.warning("Batch translation failed: %s", e)
+
+
 def _render_and_translate(resume: Any, tailored_data: dict, jd: Any, gemini: GeminiLLMService, language: str) -> str:
     """Complete document rendering logic including potential full vs partial translations."""
     resume_md_raw = generate_resume_markdown_raw(
@@ -229,54 +310,15 @@ def _render_and_translate(resume: Any, tailored_data: dict, jd: Any, gemini: Gem
     lang_name = "French" if language == "fr" else "English"
     bullet_pairs = tailored_data.get("bullet_pairs", [])
 
-    should_translate = False
-    if language == "fr" and original_lang == "en":
-        should_translate = True
-    elif language == "en" and original_lang == "fr":
-        should_translate = True
+    should_translate = (
+        (language == "fr" and original_lang == "en")
+        or (language == "en" and original_lang == "fr")
+    )
 
     if should_translate and not bullet_pairs:
-        translation_prompt_text = (TRANSLATION_PROMPT
-            .replace("{target_language}", lang_name)
-            .replace("{content}", resume_md_raw)
-        )
-        try:
-            resume_md_raw = gemini.generate_text(translation_prompt_text, temperature=0.0)
-        except GeminiAPIError as e:
-            logger.warning("Document translation failed, using markers: %s", e)
-
+        resume_md_raw = _translate_full_document(resume_md_raw, gemini, lang_name)
     elif should_translate:
-        items = [resume.summary or ""]
-        soft_skills = list(getattr(resume.skills, "soft", []) or [])
-        for skill in soft_skills:
-            items.append(getattr(skill, "name", "") or "")
-            items.append(getattr(skill, "description", "") or "")
-
-        if any(items):
-            batch = "\n---ITEM---\n".join(items)
-            batch_prompt = (TRANSLATION_PROMPT
-                .replace("{target_language}", lang_name)
-                .replace("{content}", batch)
-            )
-            try:
-                translated_batch = gemini.generate_text(batch_prompt, temperature=0.0)
-                parts = translated_batch.split("---ITEM---")
-                while len(parts) < len(items):
-                    parts.append(items[len(parts)])
-
-                tailored_data["translated_summary"] = parts[0].strip()
-                translated_soft = []
-                for i, skill in enumerate(soft_skills):
-                    name_idx = 1 + (i * 2)
-                    desc_idx = 2 + (i * 2)
-                    translated_soft.append({
-                        "name": parts[name_idx].strip() if name_idx < len(parts) else getattr(skill, "name", ""),
-                        "description": parts[desc_idx].strip() if desc_idx < len(parts) else getattr(skill, "description", ""),
-                    })
-                tailored_data["translated_soft_skills"] = translated_soft
-            except GeminiAPIError as e:
-                logger.warning("Batch translation failed: %s", e)
-
+        _translate_summary_and_skills(resume, tailored_data, gemini, lang_name)
         resume_md_raw = generate_resume_markdown_raw(
             resume=resume,
             tailored=tailored_data,
@@ -288,6 +330,75 @@ def _render_and_translate(resume: Any, tailored_data: dict, jd: Any, gemini: Gem
         resume_md_raw = _translate_markers(resume_md_raw, gemini, lang_name)
 
     return md_lib.markdown(resume_md_raw, extensions=["nl2br", "tables"])
+
+
+async def _save_output_files(
+    job: dict,
+    tailored: dict | None,
+    language: str,
+    output_dir: Path,
+) -> tuple[str, str]:
+    """Save resume and cover letter .md files. Returns (resume_path, cover_path)."""
+    if not tailored:
+        return "", ""
+
+    resume_filename = generate_output_filename(
+        company=job["company"],
+        title=job["title"],
+        doc_type="resume",
+        language=language,
+    )
+    resume_path = str(output_dir / resume_filename)
+    resume_content = tailored.get("resume_markdown", "")
+    await asyncio.to_thread(Path(resume_path).write_text, resume_content, "utf-8")
+
+    cover_filename = generate_output_filename(
+        company=job["company"],
+        title=job["title"],
+        doc_type="cover",
+        language=language,
+    )
+    cover_path = str(output_dir / cover_filename)
+    cover_content = tailored.get("cover_letter", "")
+    await asyncio.to_thread(Path(cover_path).write_text, cover_content, "utf-8")
+
+    return resume_path, cover_path
+
+
+async def _track_in_sheets(
+    job: dict,
+    resume_path: str,
+    cover_path: str,
+    language: str,
+) -> None:
+    """Append a row to Google Sheets. Fails silently with a warning log."""
+    settings = get_settings()
+    if not (settings.google_service_account_path and settings.google_sheet_id):
+        return
+
+    try:
+        from backend.models.job import ParsedJobDescription
+        from backend.modules.sheets_tracker import SheetsTracker
+
+        tracker = SheetsTracker(
+            credentials_path=settings.google_service_account_path,
+            sheet_id=settings.google_sheet_id,
+        )
+        tracker.connect()
+
+        posting = job.get("posting")
+        jd = app_state.get("parsed_jds", {}).get(job["id"]) or ParsedJobDescription()
+        if posting is not None:
+            tracker.append_job(
+                posting=posting,
+                _jd=jd,
+                match_result=job.get("match"),
+                resume_path=resume_path,
+                cover_letter_path=cover_path,
+                language=language,
+            )
+    except Exception as e:
+        logger.warning("Google Sheets tracking failed: %s", e)
 
 
 router = APIRouter(prefix="/preview")
@@ -340,7 +451,7 @@ async def preview_job(request: Request, job_id: str) -> HTMLResponse:
 
         tailored_data = _build_tailored_data(tailored_output, cover_letter, all_warnings)
         resume_md = _render_and_translate(resume, tailored_data, jd, gemini, language)
-        tailored_data["resume_markdown"] = resume_md
+        tailored_data["resume_markdown"] = _sanitize_html(resume_md)
 
         tailored_cache[f"{job_id}_{language}"] = tailored_data
 
@@ -364,86 +475,20 @@ async def preview_job(request: Request, job_id: str) -> HTMLResponse:
 
 @router.post("/{job_id}/approve")
 async def approve_job(request: Request, job_id: str) -> RedirectResponse:
-    """Approve tailored CV — save files to disk and track in Google Sheets."""
+    """Approve tailored CV: save files to disk and track in Google Sheets."""
     job = get_job_data(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
     language = app_state.get("language", "fr")
     cache_key = f"{job_id}_{language}"
-    tailored_cache = app_state.get("tailored_outputs", {})
-    tailored = tailored_cache.get(cache_key)
+    tailored = app_state.get("tailored_outputs", {}).get(cache_key)
 
-    # Persist approved artefacts under output/ for download from results.
     output_dir = Path("output")
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    resume_path = ""
-    cover_path = ""
-
-    if tailored:
-        resume_filename = generate_output_filename(
-            company=job["company"],
-            title=job["title"],
-            doc_type="resume",
-            language=language,
-        )
-        resume_path = str(output_dir / resume_filename)
-        resume_content = tailored.get("resume_markdown", "")
-        with open(resume_path, "w", encoding="utf-8") as f:
-            f.write(resume_content)
-
-        cover_filename = generate_output_filename(
-            company=job["company"],
-            title=job["title"],
-            doc_type="cover",
-            language=language,
-        )
-        cover_path = str(output_dir / cover_filename)
-        cover_content = tailored.get("cover_letter", "")
-        with open(cover_path, "w", encoding="utf-8") as f:
-            f.write(cover_content)
-
-    # Optional Sheets tracking — never block approve on tracker failures.
-    settings = get_settings()
-    if settings.google_service_account_path and settings.google_sheet_id:
-        try:
-            from backend.models.job import ParsedJobDescription
-            from backend.modules.sheets_tracker import SheetsTracker
-
-            tracker = SheetsTracker(
-                credentials_path=settings.google_service_account_path,
-                sheet_id=settings.google_sheet_id,
-            )
-            tracker.connect()
-
-            # Metadata used by SheetsTracker.append_job via posting/match objects.
-            match = job.get("match")
-            atf = job.get("atf") or {}
-            score = job.get("score", 0)
-            location = job.get("location", "")
-            contract = job.get("contract", "")
-            url = job.get("url", "")
-            missing = ", ".join(job.get("missing_keywords", []))
-            recommendation = atf.get("recommendation", "") if isinstance(atf, dict) else ""
-            logger.debug(
-                "Sheets metadata: score=%s location=%s contract=%s url=%s missing=%s recommendation=%s",
-                score, location, contract, url, missing, recommendation,
-            )
-
-            posting = job.get("posting")
-            jd = app_state.get("parsed_jds", {}).get(job_id) or ParsedJobDescription()
-            if posting is not None:
-                tracker.append_job(
-                    posting=posting,
-                    jd=jd,
-                    match_result=match,
-                    resume_path=resume_path,
-                    cover_letter_path=cover_path,
-                    language=language,
-                )
-        except Exception as e:
-            logger.warning("Google Sheets tracking failed: %s", e)
+    resume_path, cover_path = await _save_output_files(job, tailored, language, output_dir)
+    await _track_in_sheets(job, resume_path, cover_path, language)
 
     approved = app_state.setdefault("approved_jobs", set())
     approved.add(job_id)
@@ -462,7 +507,7 @@ async def approve_job(request: Request, job_id: str) -> RedirectResponse:
     save_pipeline_data()
 
     logger.debug(
-        "Job approved: %s at %s — files saved to %s",
+        "Job approved: %s at %s; files saved to %s",
         job["title"], job["company"], output_dir,
     )
     return RedirectResponse(url="/results", status_code=302)
@@ -477,7 +522,7 @@ async def view_resume(request: Request, job_id: str) -> HTMLResponse:
     tailored = app_state.get("tailored_outputs", {}).get(cache_key)
 
     if not tailored or not tailored.get("resume_markdown"):
-        raise HTTPException(status_code=404, detail="No tailored resume found — preview the job first")
+        raise HTTPException(status_code=404, detail="No tailored resume found. Preview the job first.")
 
     job = get_job_data(job_id)
     return templates.TemplateResponse(
@@ -504,12 +549,12 @@ async def view_cover_letter(request: Request, job_id: str) -> HTMLResponse:
     tailored = app_state.get("tailored_outputs", {}).get(cache_key)
 
     if not tailored or not tailored.get("cover_letter"):
-        raise HTTPException(status_code=404, detail="No cover letter found — preview the job first")
+        raise HTTPException(status_code=404, detail="No cover letter found. Preview the job first.")
 
     job = get_job_data(job_id)
 
     cover_text = tailored["cover_letter"]
-    cover_html = md_lib.markdown(cover_text, extensions=["nl2br"])
+    cover_html = _sanitize_html(md_lib.markdown(cover_text, extensions=["nl2br"]))
 
     return templates.TemplateResponse(
         request=request,

@@ -95,7 +95,7 @@ class RemotiveClient:
                     location_filtered.append(posting)
                     continue
 
-                # Remote is OFF — drop everything that doesn't match the city
+                # Remote is OFF: drop everything that doesn't match the city
 
             logger.debug("Remotive location filter: %d → %d (location='%s', remote_ok=%s)",
                        len(results), len(location_filtered), user_location, remote_ok)

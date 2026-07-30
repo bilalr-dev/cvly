@@ -16,7 +16,7 @@ def _extract_year(date_str: Any) -> int:
 
     if not isinstance(date_str, str):
         return 0
-    match = re.search(r'\d{4}', date_str)
+    match = re.search(r"\d{4}", date_str)
     if match:
         return int(match.group(0))
     return 0
@@ -111,7 +111,7 @@ def compute_match_score(
     semantic_score: float,
     experience_score: float,
     profile_type: str,
-    contract_type: str | None
+    _contract_type: str | None
 ) -> float:
 
     score = 0.0
