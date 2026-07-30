@@ -394,12 +394,41 @@ async def execute_pipeline() -> None:
         )
         raw_count = len(postings)
 
+        # Skip jobs the user already approved — no need to re-process
+        approved = app_state.get("approved_jobs", set())
+        previous_by_id = {p.id: p for p in app_state.get("pipeline_results", [])}
+        previous_matches = dict(app_state.get("match_results", {}))
+        previous_jds = dict(app_state.get("parsed_jds", {}))
+
+        approved_postings: list = []
+        if approved:
+            seen: set[str] = set()
+            for p in postings:
+                if p.id in approved and p.id not in seen:
+                    approved_postings.append(p)
+                    seen.add(p.id)
+            for jid in approved:
+                if jid not in seen and jid in previous_by_id:
+                    approved_postings.append(previous_by_id[jid])
+                    seen.add(jid)
+
+            before = len(postings)
+            postings = [p for p in postings if p.id not in approved]
+            if before > len(postings):
+                logger.debug("Skipped %d already-approved jobs", before - len(postings))
+
         # Stage 3: Filter (Note: regex filters using \b and re.compile are delegated to _filter_postings)
         postings = _filter_postings(postings, prefs_data, for_titles, settings.max_jd_parse)
         if not postings:
+            # Keep approved jobs visible even when no new postings remain
+            kept_matches = {p.id: previous_matches[p.id] for p in approved_postings if p.id in previous_matches}
+            kept_jds = {p.id: previous_jds[p.id] for p in approved_postings if p.id in previous_jds}
+            app_state["pipeline_results"] = approved_postings
+            app_state["match_results"] = kept_matches
+            app_state["parsed_jds"] = kept_jds
             app_state["pipeline_status"] = PipelineStatus.COMPLETE
-            app_state["pipeline_results"] = []
             app_state["last_run"] = datetime.now(tz=timezone.utc).isoformat()
+            save_pipeline_data()
             return
 
         logger.info("Found %d jobs → %d after filtering", raw_count, len(postings))
@@ -427,8 +456,15 @@ async def execute_pipeline() -> None:
             gemini_service, rate_limiter, settings.match_threshold, language, app_state,
         )
 
+        # Re-attach previously approved jobs (and their scores) for the results page
+        for p in approved_postings:
+            if p.id in previous_matches and p.id not in match_results:
+                match_results[p.id] = previous_matches[p.id]
+            if p.id in previous_jds and p.id not in parsed_jds:
+                parsed_jds[p.id] = previous_jds[p.id]
+
         # Finalize
-        app_state["pipeline_results"] = postings
+        app_state["pipeline_results"] = approved_postings + postings
         app_state["parsed_jds"] = parsed_jds
         app_state["match_results"] = match_results
         app_state["pipeline_status"] = PipelineStatus.COMPLETE
@@ -438,7 +474,7 @@ async def execute_pipeline() -> None:
         duration = int(time.time() - app_state["pipeline_start_time"]) if "pipeline_start_time" in app_state else 0
         minutes = duration // 60
         seconds = duration % 60
-        logger.info("Pipeline complete : %d jobs in %dm %ds", len(postings), minutes, seconds)
+        logger.info("Pipeline complete : %d jobs in %dm %ds", len(app_state["pipeline_results"]), minutes, seconds)
 
     except (GeminiAPIError, ValueError, TypeError) as e:
         app_state["pipeline_status"] = PipelineStatus.ERROR

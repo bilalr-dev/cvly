@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
@@ -13,11 +14,11 @@ from backend.config import get_settings
 from backend.modules.cover_letter import generate_cover_letter
 from backend.modules.evaluator_agent import evaluate_tailored_output
 from backend.modules.hallucination_checker import check_hallucinations
-from backend.modules.output_generator import generate_resume_markdown_raw
+from backend.modules.output_generator import generate_output_filename, generate_resume_markdown_raw
 from backend.modules.tailoring import rewrite_bullets
 from backend.prompts import TRANSLATION_PROMPT
 from backend.services.gemini_llm import GeminiAPIError, GeminiLLMService
-from backend.state import app_state, get_translations, templates
+from backend.state import app_state, get_translations, save_pipeline_data, templates
 from backend.utils.constants import FRENCH_DETECTION_WORDS, MIN_BULLET_LENGTH, SEVERITY_LABELS, VIOLATION_LABELS
 
 logger = logging.getLogger(__name__)
@@ -363,19 +364,166 @@ async def preview_job(request: Request, job_id: str) -> HTMLResponse:
 
 @router.post("/{job_id}/approve")
 async def approve_job(request: Request, job_id: str) -> RedirectResponse:
-    """Approve tailored CV."""
+    """Approve tailored CV — save files to disk and track in Google Sheets."""
     job = get_job_data(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
+    language = app_state.get("language", "fr")
+    cache_key = f"{job_id}_{language}"
+    tailored_cache = app_state.get("tailored_outputs", {})
+    tailored = tailored_cache.get(cache_key)
+
+    # Persist approved artefacts under output/ for download from results.
+    output_dir = Path("output")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    resume_path = ""
+    cover_path = ""
+
+    if tailored:
+        resume_filename = generate_output_filename(
+            company=job["company"],
+            title=job["title"],
+            doc_type="resume",
+            language=language,
+        )
+        resume_path = str(output_dir / resume_filename)
+        resume_content = tailored.get("resume_markdown", "")
+        with open(resume_path, "w", encoding="utf-8") as f:
+            f.write(resume_content)
+
+        cover_filename = generate_output_filename(
+            company=job["company"],
+            title=job["title"],
+            doc_type="cover",
+            language=language,
+        )
+        cover_path = str(output_dir / cover_filename)
+        cover_content = tailored.get("cover_letter", "")
+        with open(cover_path, "w", encoding="utf-8") as f:
+            f.write(cover_content)
+
+    # Optional Sheets tracking — never block approve on tracker failures.
+    settings = get_settings()
+    if settings.google_service_account_path and settings.google_sheet_id:
+        try:
+            from backend.models.job import ParsedJobDescription
+            from backend.modules.sheets_tracker import SheetsTracker
+
+            tracker = SheetsTracker(
+                credentials_path=settings.google_service_account_path,
+                sheet_id=settings.google_sheet_id,
+            )
+            tracker.connect()
+
+            # Metadata used by SheetsTracker.append_job via posting/match objects.
+            match = job.get("match")
+            atf = job.get("atf") or {}
+            score = job.get("score", 0)
+            location = job.get("location", "")
+            contract = job.get("contract", "")
+            url = job.get("url", "")
+            missing = ", ".join(job.get("missing_keywords", []))
+            recommendation = atf.get("recommendation", "") if isinstance(atf, dict) else ""
+            logger.debug(
+                "Sheets metadata: score=%s location=%s contract=%s url=%s missing=%s recommendation=%s",
+                score, location, contract, url, missing, recommendation,
+            )
+
+            posting = job.get("posting")
+            jd = app_state.get("parsed_jds", {}).get(job_id) or ParsedJobDescription()
+            if posting is not None:
+                tracker.append_job(
+                    posting=posting,
+                    jd=jd,
+                    match_result=match,
+                    resume_path=resume_path,
+                    cover_letter_path=cover_path,
+                    language=language,
+                )
+        except Exception as e:
+            logger.warning("Google Sheets tracking failed: %s", e)
+
     approved = app_state.setdefault("approved_jobs", set())
     approved.add(job_id)
+
+    saved_files = app_state.setdefault("saved_files", {})
+    saved_files[job_id] = {
+        "resume_path": resume_path,
+        "cover_path": cover_path,
+    }
 
     app_state["last_approved"] = {
         "title": job["title"],
         "company": job["company"],
     }
+
+    save_pipeline_data()
+
+    logger.debug(
+        "Job approved: %s at %s — files saved to %s",
+        job["title"], job["company"], output_dir,
+    )
     return RedirectResponse(url="/results", status_code=302)
+
+
+@router.get("/{job_id}/view/resume", response_class=HTMLResponse)
+async def view_resume(request: Request, job_id: str) -> HTMLResponse:
+    """Render the tailored resume as a styled, printable HTML page."""
+    t = get_translations()
+    language = app_state.get("language", "fr")
+    cache_key = f"{job_id}_{language}"
+    tailored = app_state.get("tailored_outputs", {}).get(cache_key)
+
+    if not tailored or not tailored.get("resume_markdown"):
+        raise HTTPException(status_code=404, detail="No tailored resume found — preview the job first")
+
+    job = get_job_data(job_id)
+    return templates.TemplateResponse(
+        request=request,
+        name="view_document.html",
+        context={
+            "request": request,
+            "content": tailored["resume_markdown"],
+            "doc_type": t.get("tailored_cv_title", "CV adapté"),
+            "job_title": job["title"] if job else "",
+            "job_company": job["company"] if job else "",
+            "language": language,
+            "t": t,
+        },
+    )
+
+
+@router.get("/{job_id}/view/cover", response_class=HTMLResponse)
+async def view_cover_letter(request: Request, job_id: str) -> HTMLResponse:
+    """Render the cover letter as a styled, printable HTML page."""
+    t = get_translations()
+    language = app_state.get("language", "fr")
+    cache_key = f"{job_id}_{language}"
+    tailored = app_state.get("tailored_outputs", {}).get(cache_key)
+
+    if not tailored or not tailored.get("cover_letter"):
+        raise HTTPException(status_code=404, detail="No cover letter found — preview the job first")
+
+    job = get_job_data(job_id)
+
+    cover_text = tailored["cover_letter"]
+    cover_html = md_lib.markdown(cover_text, extensions=["nl2br"])
+
+    return templates.TemplateResponse(
+        request=request,
+        name="view_document.html",
+        context={
+            "request": request,
+            "content": cover_html,
+            "doc_type": t.get("cover_letter_title", "Lettre de motivation"),
+            "job_title": job["title"] if job else "",
+            "job_company": job["company"] if job else "",
+            "language": language,
+            "t": t,
+        },
+    )
 
 
 @router.post("/{job_id}/regenerate")
