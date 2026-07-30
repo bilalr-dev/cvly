@@ -240,6 +240,22 @@ CITY_INSEE_CODES: dict[str, str] = {
     "toulon": "83137",
 }
 
+# Substring signals in France Travail typeContrat / typeContratLibelle → canonical contract type.
+# Order matters: first match wins (dict insertion order).
+FT_CONTRACT_TYPE_SIGNALS: dict[str, tuple[str, ...]] = {
+    "CDI": ("cdi",),
+    "CDD": ("cdd",),
+    "stage": ("stage",),
+    "alternance_apprentissage": ("alternance", "apprentissage"),
+    "freelance": ("freelance",),
+}
+
+# Default query params for JSearch search-v2 (query/country are set per request).
+JSEARCH_DEFAULT_PARAMS: dict[str, str] = {
+    "page": "1",
+    "num_pages": "1",
+}
+
 # Used by preview.py to translate LLM verdict violations into user-facing warnings.
 VIOLATION_LABELS: dict[str, dict[str, str]] = {
     "fr": {
