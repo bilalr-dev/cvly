@@ -49,11 +49,15 @@
     </div>
     <div class="flex items-center gap-3.5">
       <button hx-post="/pipeline/run" hx-target="#pipeline-status" hx-swap="innerHTML"
-              class="bg-indigo-600 hover:bg-indigo-700 text-white border-none rounded-lg px-4 py-2 text-sm font-semibold cursor-pointer">
+              class="btn-primary">
         {{ t.run_pipeline }}
       </button>
-      {% if sheet_connected %}
-      <a href="#" target="_blank" class="text-sm text-indigo-600 font-medium">{{ t.open_sheet }}</a>
+      {% if sheet_url %}
+      <a href="{{ sheet_url }}" target="_blank"
+         class="btn-secondary flex items-center gap-1.5 no-underline">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/></svg>
+          {{ t.get("open_google_sheet", t.get("open_sheet", "Ouvrir Google Sheet")) }}
+      </a>
       {% endif %}
     </div>
   {% else %}
@@ -62,11 +66,15 @@
     </div>
     <div class="flex items-center gap-3.5">
       <button hx-post="/pipeline/run" hx-target="#pipeline-status" hx-swap="innerHTML"
-              class="bg-indigo-600 hover:bg-indigo-700 text-white border-none rounded-lg px-4 py-2 text-sm font-semibold cursor-pointer">
+              class="btn-primary">
         {{ t.run_pipeline }}
       </button>
-      {% if sheet_connected %}
-      <a href="#" target="_blank" class="text-sm text-indigo-600 font-medium">{{ t.open_sheet }}</a>
+      {% if sheet_url %}
+      <a href="{{ sheet_url }}" target="_blank"
+         class="btn-secondary flex items-center gap-1.5 no-underline">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/></svg>
+          {{ t.get("open_google_sheet", t.get("open_sheet", "Ouvrir Google Sheet")) }}
+      </a>
       {% endif %}
     </div>
   {% endif %}

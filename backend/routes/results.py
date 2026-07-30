@@ -1,3 +1,4 @@
+"""Results page: scored job matches with filtering."""
 from __future__ import annotations
 
 import logging
@@ -57,9 +58,12 @@ async def get_results(request: Request) -> HTMLResponse:
     t = get_translations()
     postings = app_state.get("pipeline_results", [])
     match_results = app_state.get("match_results", {})
+    skipped = app_state.get("skipped_jobs", set())
 
     jobs_display = []
     for posting in postings:
+        if posting.id in skipped:
+            continue
         match = match_results.get(posting.id)
         atf = getattr(match, "atf_analysis", None) if match else None
 
@@ -106,6 +110,14 @@ async def get_results(request: Request) -> HTMLResponse:
         "active_page": "results",
         "approved_jobs": app_state.get("approved_jobs", set())
     })
+
+@router.post("/{job_id}/skip")
+async def skip_job(request: Request, job_id: str) -> HTMLResponse:
+    """Mark a job as skipped and remove its row from the results table."""
+    skipped = app_state.setdefault("skipped_jobs", set())
+    skipped.add(job_id)
+    logger.debug("Skipped job %s", job_id)
+    return HTMLResponse(content="", status_code=200)
 
 @router.get("/job/{job_id}", response_class=HTMLResponse)
 async def get_job_partial(request: Request, job_id: str) -> HTMLResponse:

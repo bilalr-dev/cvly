@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ language | default('fr') }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -34,6 +34,17 @@
         .prose p { margin-bottom: 0.5rem; font-size: 0.875rem; line-height: 1.6; }
         .prose strong { font-weight: 600; }
         .prose hr { border: none; border-top: 1px solid #e2e8f0; margin: 1rem 0; }
+    </style>
+    <style type="text/tailwindcss">
+        .btn-primary {
+            @apply bg-indigo-600 hover:bg-indigo-700 text-white border-none rounded-lg px-4 py-2 text-sm font-semibold cursor-pointer;
+        }
+        .btn-secondary {
+            @apply text-sm text-indigo-600 hover:text-indigo-800 border border-indigo-200 hover:border-indigo-300 rounded-lg px-3 py-1.5 cursor-pointer bg-white;
+        }
+        .btn-icon {
+            @apply text-slate-400 hover:text-indigo-600 cursor-pointer bg-white border border-slate-200 shadow-sm hover:shadow p-1 rounded shrink-0;
+        }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans flex h-screen overflow-hidden">
@@ -88,16 +99,16 @@
     <div id="nav-warning-modal" class="hidden fixed inset-0 z-[200] flex items-center justify-center">
       <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onclick="closeNavWarning()"></div>
       <div class="relative bg-white rounded-xl shadow-xl p-6 max-w-md mx-4">
-        <div class="text-lg font-semibold text-slate-800 mb-2">Pipeline en cours</div>
+        <div class="text-lg font-semibold text-slate-800 mb-2">{{ t.get("pipeline_running_warning", "Pipeline en cours") }}</div>
         <div class="text-sm text-slate-600 mb-5" id="nav-warning-text"></div>
         <div class="flex gap-3 justify-end">
           <button onclick="closeNavWarning()"
                   class="px-4 py-2 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg border-none cursor-pointer">
-            Rester sur la page
+            {{ t.get("stay_on_page", "Rester sur la page") }}
           </button>
           <button onclick="confirmNavAway()"
                   class="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg border-none cursor-pointer">
-            Quitter quand même
+            {{ t.get("leave_anyway", "Quitter quand même") }}
           </button>
         </div>
       </div>

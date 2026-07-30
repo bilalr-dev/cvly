@@ -1,3 +1,4 @@
+"""Pydantic models for raw and parsed job postings."""
 from __future__ import annotations
 
 from typing import Literal, get_args
@@ -12,10 +13,10 @@ ContractType = Literal["CDD", "CDI", "alternance_apprentissage", "alternance_pro
 SupportedLanguage = Literal["en", "fr"]
 
 assert set(get_args(ContractType)) == set(SUPPORTED_CONTRACT_TYPES), (
-    "ContractType Literal and SUPPORTED_CONTRACT_TYPES are out of sync — update both together"
+    "ContractType Literal and SUPPORTED_CONTRACT_TYPES are out of sync; update both together"
 )
 assert set(get_args(SupportedLanguage)) == set(SUPPORTED_LANGUAGES), (
-    "SupportedLanguage Literal and SUPPORTED_LANGUAGES are out of sync — update both together"
+    "SupportedLanguage Literal and SUPPORTED_LANGUAGES are out of sync; update both together"
 )
 
 

@@ -1,3 +1,4 @@
+"""Settings page: resume upload and search preferences."""
 from __future__ import annotations
 
 import logging
@@ -39,13 +40,13 @@ def _build_resume_summary(profile: Any) -> dict:
     """Build a UI-friendly summary dictionary from a ResumeProfile."""
     profile_labels_fr = {
         "experienced": "Professionnel expérimenté",
-        "student_stage": "Étudiant — Stage",
-        "student_alternance": "Étudiant — Alternance",
+        "student_stage": "Étudiant / Stage",
+        "student_alternance": "Étudiant / Alternance",
     }
     profile_labels_en = {
         "experienced": "Experienced Professional",
-        "student_stage": "Student — Internship",
-        "student_alternance": "Student — Alternance",
+        "student_stage": "Student / Internship",
+        "student_alternance": "Student / Alternance",
     }
 
     lang = app_state.get("language", "fr")
@@ -61,7 +62,7 @@ def _build_resume_summary(profile: Any) -> dict:
     education_summary = ""
     if profile.education:
         edu = profile.education[0]
-        education_summary = f"{edu.degree} — {edu.institution}"
+        education_summary = f"{edu.degree}, {edu.institution}"
 
     return {
         "name": profile.name,

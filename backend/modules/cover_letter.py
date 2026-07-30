@@ -1,3 +1,4 @@
+"""Module 5: cover letter generation."""
 from __future__ import annotations
 
 import logging

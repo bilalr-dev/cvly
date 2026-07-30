@@ -1,3 +1,4 @@
+"""Async token-bucket rate limiter for API call throttling."""
 from __future__ import annotations
 
 import asyncio

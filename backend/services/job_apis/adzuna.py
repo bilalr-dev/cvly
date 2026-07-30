@@ -1,3 +1,4 @@
+"""Adzuna job board API client."""
 from __future__ import annotations
 
 import logging
@@ -90,11 +91,11 @@ class AdzunaClient(BaseJobAPIClient):
             # Extract visible text from main content area
             import re
             # Remove HTML tags
-            clean = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL)
-            clean = re.sub(r'<style[^>]*>.*?</style>', '', clean, flags=re.DOTALL)
-            clean = re.sub(r'<[^>]+>', ' ', clean)
+            clean = re.sub(r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL)
+            clean = re.sub(r"<style[^>]*>.*?</style>", "", clean, flags=re.DOTALL)
+            clean = re.sub(r"<[^>]+>", " ", clean)
             # Normalize whitespace
-            clean = re.sub(r'\s+', ' ', clean).strip()
+            clean = re.sub(r"\s+", " ", clean).strip()
             # Return first 3000 chars of extracted text (enough for JD parsing)
             return clean[:3000] if len(clean) > 200 else None
         except Exception:

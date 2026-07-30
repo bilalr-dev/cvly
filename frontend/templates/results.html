@@ -3,7 +3,7 @@
 {% block content %}
     {% if last_approved %}
     <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6 text-sm text-green-800">
-        ✓ {{ t.get("job_approved_msg", "Candidature approuvée") }} — <strong>{{ last_approved.title }}</strong> @
+        ✓ {{ t.get("job_approved_msg", "Candidature approuvée") }}: <strong>{{ last_approved.title }}</strong> @
         {% if last_approved.company == '__MISSING_COMPANY__' %}
         <span class="italic opacity-80">{{ t.get("company_not_specified", "Entreprise non précisée") }}</span>
         {% else %}
@@ -87,7 +87,7 @@
             </div>
             <h3 class="text-[15px] text-slate-600 mb-2 font-semibold">{{ t.empty_title }}</h3>
             <p class="text-sm text-slate-400 mb-5">{{ t.empty_sub }}</p>
-            <a href="/" class="bg-indigo-600 hover:bg-indigo-700 text-white border-none rounded-lg font-semibold cursor-pointer px-5 py-2.5 inline-block transition-colors no-underline">{{ t.empty_link }}</a>
+            <a href="/" class="btn-primary inline-block transition-colors no-underline px-5 py-2.5">{{ t.empty_link }}</a>
         </div>
     </div>
     {% elif not jobs %}
@@ -104,7 +104,7 @@
                 <tr class="bg-slate-50 border-b border-slate-200 text-slate-600">
                     <th class="p-4 font-semibold w-1/4">{{ t.col_company }}</th>
                     <th class="p-4 font-semibold w-1/4">{{ t.col_title }}</th>
-                    <th class="p-4 font-semibold">Match</th>
+                    <th class="p-4 font-semibold">{{ t.get("col_match", "Match") }}</th>
                     <th class="p-4 font-semibold">{{ t.col_location }}</th>
                     <th class="p-4 font-semibold">{{ t.col_contract }}</th>
                     <th class="p-4 font-semibold">{{ t.get("col_status", "Statut") }}</th>

@@ -1,9 +1,11 @@
+"""Job posting deduplication utilities."""
 from __future__ import annotations
 
 import hashlib
 import re
 
 from backend.models.job import RawJobPosting
+
 
 def is_truncated(text: str) -> bool:
     """Return True if the description appears to be a truncated excerpt."""
@@ -13,23 +15,23 @@ def is_truncated(text: str) -> bool:
     return stripped.endswith("…") or stripped.endswith("...") or len(text) < 400
 
 
-_COMPANY_SUFFIX_RE = re.compile(r'\b(sas|sarl|sa|ltd|inc|gmbh|s\.a\.|s\.a\.r\.l\.)(?=\s|$)', re.IGNORECASE)
-_TITLE_PREFIX_RE = re.compile(r'\b(senior|junior|lead|staff|principal)\b', re.IGNORECASE)
+_COMPANY_SUFFIX_RE = re.compile(r"\b(sas|sarl|sa|ltd|inc|gmbh|s\.a\.|s\.a\.r\.l\.)(?=\s|$)", re.IGNORECASE)
+_TITLE_PREFIX_RE = re.compile(r"\b(senior|junior|lead|staff|principal)\b", re.IGNORECASE)
 
 def normalize_company(name: str) -> str:
     name = name.lower()
-    name = _COMPANY_SUFFIX_RE.sub('', name)
+    name = _COMPANY_SUFFIX_RE.sub("", name)
     return " ".join(name.split())
 
 def normalize_title(title: str) -> str:
     title = title.lower()
-    title = _TITLE_PREFIX_RE.sub('', title)
+    title = _TITLE_PREFIX_RE.sub("", title)
     return " ".join(title.split())
 
 def _extract_city(location: str) -> str:
     if not location:
         return ""
-    return location.split(',')[0].strip().lower()
+    return location.split(",")[0].strip().lower()
 
 def generate_posting_id(title: str, company: str, location: str) -> str:
     raw = f"{title}{company}{location}".encode()

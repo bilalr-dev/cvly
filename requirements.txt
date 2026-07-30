@@ -12,3 +12,4 @@ python-dotenv==1.2.2
 pydantic==2.11.4
 pydantic-settings==2.7.0
 markdown==3.7
+nh3==0.2.21

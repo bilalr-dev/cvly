@@ -1,3 +1,4 @@
+"""Module 2: parallel job discovery from multiple API sources."""
 from __future__ import annotations
 
 import asyncio

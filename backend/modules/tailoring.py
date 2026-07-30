@@ -1,4 +1,4 @@
-"""Module 5: CV bullet rewriting with two-stage keyword validation.
+"""CV bullet rewriting with two-stage keyword validation.
 
 Stage 1 (analyse_keywords): Classifies missing keywords as applicable
 or unfillable using LLM at temperature 0.0. No rewriting.
@@ -27,7 +27,7 @@ async def analyse_keywords(
     """Stage 1: Classify missing keywords as applicable or unfillable.
 
     Uses temperature 0.0 for deterministic classification.
-    No rewriting — pure keyword-to-CV evidence matching.
+    No rewriting: pure keyword-to-CV evidence matching.
     Ref: CoVe (Meta 2024), Grounded Optimization L4.
     """
     if not missing_keywords:
@@ -119,7 +119,7 @@ async def rewrite_bullets(
     # Stage 2: rewrite bullets with validated keywords only
     prompt = (BULLET_REWRITE_PROMPT
         .replace("{original_bullets}", " ".join(orig_bullets))
-        .replace("{missing_keywords}", ", ".join(validated_keywords) if validated_keywords else "None — do not add any keywords not already present in the original bullets.")
+        .replace("{missing_keywords}", ", ".join(validated_keywords) if validated_keywords else "None: do not add any keywords not already present in the original bullets.")
         .replace("{key_responsibilities}", " ".join(key_resp))
         .replace("{profile_type}", str(getattr(resume, "detected_profile", "experienced")))
         .replace("{language}", language)

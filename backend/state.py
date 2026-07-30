@@ -1,3 +1,4 @@
+"""Global application state, translations, and persistence."""
 from __future__ import annotations
 
 import json
@@ -7,7 +8,7 @@ from typing import Any
 
 from fastapi.templating import Jinja2Templates
 
-from backend.utils.constants import TRANSLATIONS
+from backend.utils.constants import TRANSLATIONS, PipelineStatus
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +21,7 @@ templates = Jinja2Templates(directory=str(_templates_dir))
 
 
 import os  # noqa: E402
+
 if "PYTEST_CURRENT_TEST" in os.environ or "pytest" in os.environ.get("_", "").lower():
     import tempfile
     _STATE_DIR = Path(tempfile.gettempdir()) / "cvly_test_cache"
@@ -74,6 +76,7 @@ app_state: dict[str, Any] = {
     "last_run": None,
     "language": "fr",
     "approved_jobs": set(),
+    "skipped_jobs": set(),
     "saved_files": {},
 }
 
@@ -120,7 +123,7 @@ def save_pipeline_data() -> None:
 
     meta = {
         "last_run": app_state.get("last_run"),
-        "pipeline_status": app_state.get("pipeline_status", "idle"),
+        "pipeline_status": app_state.get("pipeline_status", PipelineStatus.IDLE),
         "pipeline_duration": app_state.get("pipeline_duration"),
         "pipeline_error": app_state.get("pipeline_error")
     }
@@ -170,8 +173,11 @@ def load_pipeline_data() -> None:
         try:
             meta = json.loads(_PIPELINE_META_FILE.read_text(encoding="utf-8"))
             app_state["last_run"] = meta.get("last_run")
-            status = meta.get("pipeline_status", "idle")
-            app_state["pipeline_status"] = "complete" if status == "running" else status
+            status = meta.get("pipeline_status", PipelineStatus.IDLE)
+            # Never restore a mid-run status after process restart
+            app_state["pipeline_status"] = (
+                PipelineStatus.COMPLETE if status == PipelineStatus.RUNNING else status
+            )
             app_state["pipeline_duration"] = meta.get("pipeline_duration")
             app_state["pipeline_error"] = meta.get("pipeline_error")
         except (json.JSONDecodeError, ValueError, KeyError) as e:

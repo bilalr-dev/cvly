@@ -68,7 +68,7 @@ async def evaluate_tailored_output(
             temperature=0.0,  # strict factual comparison
         )
         logger.debug(
-            "Evaluator verdict: %s — %d violations found",
+            "Evaluator verdict: %s (%d violations found)",
             "ACCEPT" if verdict.is_acceptable else "REJECT",
             len(verdict.violations),
         )

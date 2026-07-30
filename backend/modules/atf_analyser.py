@@ -1,3 +1,4 @@
+"""ATF recruiter-style analysis of resume/JD fit."""
 from __future__ import annotations
 
 from backend.models.match import ATFAnalysis

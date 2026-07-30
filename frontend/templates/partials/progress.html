@@ -4,7 +4,7 @@
      class="bg-white border border-slate-200 rounded-xl p-5">
 
   <div class="text-sm text-slate-600 mb-3">
-    {{ t.get("step_prefix", "Step") }} {{ step }}/{{ total }} — {{ step_label }}
+    {{ t.get("step_prefix", "Step") }} {{ step }}/{{ total }}: {{ step_label }}
     {% if step_detail %}
     <div class="text-xs text-slate-400 mt-1">{{ step_detail }}</div>
     {% endif %}
@@ -25,7 +25,7 @@
       t.get("step_tailoring", "Tailoring"),
     ] %}
     {% for name in step_names %}
-    <div class="text-[11px] {% if loop.index <= step %}text-slate-700{% else %}text-slate-400{% endif %} text-center" style="max-width:19%">
+    <div class="text-[11px] {% if loop.index <= step %}text-slate-700{% else %}text-slate-400{% endif %} text-center flex-1 max-w-[19%]">
       {{ name }}
     </div>
     {% endfor %}

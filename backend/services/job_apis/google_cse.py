@@ -1,10 +1,11 @@
+"""Google Custom Search job discovery client."""
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import aiohttp
 
-import logging
 from backend.models.job import RawJobPosting
 from backend.models.preferences import SearchPreferences
 from backend.utils.dedup import generate_posting_id

@@ -11,7 +11,6 @@ Prompt design references:
 """
 from __future__ import annotations
 
-
 # ──────────────────────────────────────────────────────────────────────────────
 # MODULE 1 - RESUME PARSING
 # Deterministic extraction · temperature 0.0
