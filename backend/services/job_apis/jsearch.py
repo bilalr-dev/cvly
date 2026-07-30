@@ -7,13 +7,14 @@ import aiohttp
 
 from backend.models.job import RawJobPosting
 from backend.models.preferences import SearchPreferences
+from backend.utils.constants import JSEARCH_DEFAULT_PARAMS
 from backend.utils.dedup import generate_posting_id
 
 from .base import BaseJobAPIClient
 
 logger = logging.getLogger(__name__)
 
-_SEARCH_URL = "https://jsearch.p.rapidapi.com/search"
+_SEARCH_URL = "https://jsearch.p.rapidapi.com/search-v2"
 
 class JSearchClient(BaseJobAPIClient):
 
@@ -21,9 +22,9 @@ class JSearchClient(BaseJobAPIClient):
         self.api_key: str = api_key
 
     def _map_response(self, item: dict[str, Any]) -> RawJobPosting:
-        title = item.get("job_title", "")
-        company = item.get("employer_name", "")
-        location = item.get("job_city", "")
+        title = item.get("job_title") or ""
+        company = item.get("employer_name") or ""
+        location = item.get("job_city") or ""
         id_str = generate_posting_id(title, company, location)
 
         return RawJobPosting(
@@ -31,7 +32,7 @@ class JSearchClient(BaseJobAPIClient):
             title=title,
             company=company,
             location=location,
-            url=item.get("job_apply_link", ""),
+            url=item.get("job_apply_link") or "",
             source="jsearch",
             description_text=""
         )
@@ -49,16 +50,27 @@ class JSearchClient(BaseJobAPIClient):
                     query_parts.append(f"in {loc}")
 
                 params = {
+                    **JSEARCH_DEFAULT_PARAMS,
                     "query": " ".join(query_parts) if query_parts else "developer",
-                    "page": "1",
-                    "num_pages": "1"
                 }
-                logger.debug(f"JSearch params: {params}")
+                country = getattr(preferences, "country", "FR").lower()
+                params["country"] = country
+                logger.debug("JSearch params: %s", params)
 
                 async with session.get(_SEARCH_URL, headers=headers, params=params) as response:
                     data = await response.json()
 
-                return [self._map_response(item) for item in data.get("data", [])]
+                # v1 format (old): data.get("data", [])
+                # v2 format (new): data.get("data", {}).get("jobs", [])
+                payload = data.get("data", {})
+                if isinstance(payload, dict):
+                    items = payload.get("jobs", [])
+                elif isinstance(payload, list):
+                    items = payload
+                else:
+                    items = []
+
+                return [self._map_response(item) for item in items]
 
         except aiohttp.ClientError:
             return []

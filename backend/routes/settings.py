@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse
 from starlette.requests import Request
 
-from backend.config import AppSettings
+from backend.config import get_settings as get_app_settings
 from backend.modules.resume_parser import ResumeParser
 from backend.services.gemini_llm import GeminiAPIError
 from backend.state import (
@@ -107,7 +107,7 @@ async def upload_resume(file: UploadFile, request: Request) -> Any:
         temp_path = temp_file.name
 
     try:
-        settings = AppSettings()
+        settings = get_app_settings()
         parser = ResumeParser(api_key=settings.gemini_api_key)
         profile = parser.parse_resume(str(temp_path))
         app_state["resume_profile"] = profile

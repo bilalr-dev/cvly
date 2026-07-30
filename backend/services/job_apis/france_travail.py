@@ -11,7 +11,7 @@ from backend.utils.dedup import generate_posting_id
 
 from .base import BaseJobAPIClient
 from backend.services.rate_limiter import AsyncRateLimiter
-from backend.utils.constants import CITY_INSEE_CODES
+from backend.utils.constants import CITY_INSEE_CODES, FT_CONTRACT_TYPE_SIGNALS
 
 logger = logging.getLogger(__name__)
 
@@ -58,16 +58,10 @@ class FranceTravailClient(BaseJobAPIClient):
         contract_type = None
         if raw_contract:
             ct_lower = raw_contract.lower()
-            if "cdi" in ct_lower:
-                contract_type = "CDI"
-            elif "cdd" in ct_lower:
-                contract_type = "CDD"
-            elif "stage" in ct_lower:
-                contract_type = "stage"
-            elif "alternance" in ct_lower or "apprentissage" in ct_lower:
-                contract_type = "alternance_apprentissage"
-            elif "freelance" in ct_lower:
-                contract_type = "freelance"
+            for ctype, signals in FT_CONTRACT_TYPE_SIGNALS.items():
+                if any(signal in ct_lower for signal in signals):
+                    contract_type = ctype
+                    break
 
         return RawJobPosting(
             id=id_str,
@@ -90,20 +84,23 @@ class FranceTravailClient(BaseJobAPIClient):
                 headers = {"Authorization": f"Bearer {self.access_token}"}
                 params: dict[str, str] = {}
 
+                # Keywords = just the job titles
                 if getattr(preferences, "titles", None):
                     params["motsCles"] = " ".join(preferences.titles)
 
+                # Location = INSEE code (required for distance to work)
                 if getattr(preferences, "location", None):
                     city = preferences.location.split(",")[0].strip().lower()
                     insee_code = CITY_INSEE_CODES.get(city)
                     if insee_code:
-                        # Use INSEE commune code so distance filtering is respected
                         params["commune"] = insee_code
                     else:
-                        # Fallback: append city name to keyword search (distance ignored)
-                        params["motsCles"] = f"{params.get('motsCles', '')} {city}".strip()
+                        # Fallback: append city to motsCles if no INSEE code
+                        current = params.get("motsCles", "")
+                        params["motsCles"] = f"{current} {city}".strip()
 
-                if getattr(preferences, "radius_km", None):
+                # Distance = only sent when commune is set
+                if "commune" in params and getattr(preferences, "radius_km", None):
                     params["distance"] = str(int(preferences.radius_km))
 
                 logger.debug("FranceTravail search params: %s", params)

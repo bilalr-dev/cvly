@@ -157,10 +157,6 @@ def _reclassify_contracts(postings: list) -> list:
 
 def _filter_by_contract(postings: list, selected_contracts: list) -> list:
     """Filter postings by user-selected contract types."""
-    logger.warning("DIAG _filter_by_contract called — selected=%s, postings=%d, sample_titles=%s",
-        selected_contracts, len(postings),
-        [p.title for p in postings[:3]])
-
     if not selected_contracts:
         return postings
 
