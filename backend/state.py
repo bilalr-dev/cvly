@@ -73,6 +73,8 @@ app_state: dict[str, Any] = {
     "parsed_jds": {},
     "last_run": None,
     "language": "fr",
+    "approved_jobs": set(),
+    "saved_files": {},
 }
 
 _saved_prefs = load_preferences()
@@ -92,6 +94,7 @@ _PIPELINE_RESULTS_FILE = _STATE_DIR / "pipeline_results.json"
 _MATCH_RESULTS_FILE = _STATE_DIR / "match_results.json"
 _PARSED_JDS_FILE = _STATE_DIR / "parsed_jds.json"
 _PIPELINE_META_FILE = _STATE_DIR / "pipeline_meta.json"
+_APPROVED_JOBS_FILE = _STATE_DIR / "approved_jobs.json"
 
 def save_pipeline_data() -> None:
     """Save pipeline results, match results, and parsed JDs to disk."""
@@ -123,6 +126,16 @@ def save_pipeline_data() -> None:
     }
     _PIPELINE_META_FILE.write_text(
         json.dumps(meta, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    approved = app_state.get("approved_jobs", set())
+    approved_data = {
+        "approved_jobs": list(approved),
+        "saved_files": app_state.get("saved_files", {}),
+    }
+    _APPROVED_JOBS_FILE.write_text(
+        json.dumps(approved_data, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
@@ -163,6 +176,14 @@ def load_pipeline_data() -> None:
             app_state["pipeline_error"] = meta.get("pipeline_error")
         except (json.JSONDecodeError, ValueError, KeyError) as e:
             logger.warning("Failed to load pipeline meta: %s", e)
+
+    if _APPROVED_JOBS_FILE.exists():
+        try:
+            approved_data = json.loads(_APPROVED_JOBS_FILE.read_text(encoding="utf-8"))
+            app_state["approved_jobs"] = set(approved_data.get("approved_jobs", []))
+            app_state["saved_files"] = approved_data.get("saved_files", {})
+        except (json.JSONDecodeError, ValueError, KeyError, TypeError) as e:
+            logger.warning("Failed to load approved jobs: %s", e)
 
 
 load_pipeline_data()
