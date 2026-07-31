@@ -1,11 +1,14 @@
 """Gemini LLM service wrapper for JSON and text generation."""
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any
 
 import google.generativeai as genai
 from pydantic import BaseModel, ValidationError
+
+from backend.prompts import GEMINI_JSON_RESPONSE_SUFFIX
 
 GEMINI_MODEL = "gemini-3.1-flash-lite"
 
@@ -55,15 +58,14 @@ class GeminiLLMService:
         genai.configure(api_key=api_key)
 
     def generate_json(self, prompt: str, response_schema: type[BaseModel], temperature: float = 0.0) -> BaseModel:
+        """Synchronous JSON generation (for sync callers like ResumeParser)."""
         model = genai.GenerativeModel(GEMINI_MODEL)
 
         schema_hint = _compact_schema_hint(response_schema)
 
         full_prompt = (
-            f"{prompt}\n\n"
-            f"Return your response as valid JSON with these fields:\n"
-            f"{schema_hint}\n"
-            f"Return ONLY valid JSON. No markdown fences, no explanation."
+            f"{prompt}"
+            f"{GEMINI_JSON_RESPONSE_SUFFIX.replace('{schema_hint}', schema_hint)}"
         )
 
         try:
@@ -91,16 +93,19 @@ class GeminiLLMService:
             data = _replace_null_lists(data)
             return response_schema.model_validate(data)
         except ValidationError as e:
-            raise GeminiAPIError(f"Schema validation failed: {e!s}") from e
+            msg = f"Schema validation failed: {e!s}"
+            raise GeminiAPIError(msg) from e
         except json.JSONDecodeError as e:
-            raise GeminiAPIError(f"Invalid JSON returned: {e!s}") from e
+            msg = f"Invalid JSON returned: {e!s}"
+            raise GeminiAPIError(msg) from e
         except GeminiAPIError:
             raise
         except Exception as e:
-            raise GeminiAPIError(f"API Error: {e!s}") from e
+            msg = f"API Error: {e!s}"
+            raise GeminiAPIError(msg) from e
 
     def generate_text(self, prompt: str, temperature: float = 0.5) -> str:
-        """Send a prompt to Gemini and return plain text."""
+        """Synchronous text generation."""
         model = genai.GenerativeModel(GEMINI_MODEL)
         try:
             response = model.generate_content(
@@ -109,4 +114,20 @@ class GeminiLLMService:
             )
             return response.text.strip()
         except Exception as e:
-            raise GeminiAPIError(f"API Error: {e!s}") from e
+            msg = f"API Error: {e!s}"
+            raise GeminiAPIError(msg) from e
+
+    async def agenerate_json(
+        self,
+        prompt: str,
+        response_schema: type[BaseModel],
+        temperature: float = 0.0,
+    ) -> BaseModel:
+        """Async JSON generation - offloads blocking SDK I/O to a worker thread."""
+        return await asyncio.to_thread(
+            self.generate_json, prompt, response_schema, temperature,
+        )
+
+    async def agenerate_text(self, prompt: str, temperature: float = 0.5) -> str:
+        """Async text generation - offloads blocking SDK I/O to a worker thread."""
+        return await asyncio.to_thread(self.generate_text, prompt, temperature)

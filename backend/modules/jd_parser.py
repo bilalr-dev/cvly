@@ -17,7 +17,7 @@ async def parse_job_description(
 ) -> ParsedJobDescription:
 
     prompt = JD_PARSE_PROMPT.format(description_text=description_text)
-    res = gemini_service.generate_json(
+    res = await gemini_service.agenerate_json(
         prompt,
         response_schema=ParsedJobDescription,
         temperature=0.0

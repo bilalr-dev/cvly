@@ -1,3 +1,4 @@
+"""Dashboard route: pipeline summary stats and recent activity."""
 from __future__ import annotations
 
 import logging

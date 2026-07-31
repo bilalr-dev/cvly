@@ -3,6 +3,9 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -20,13 +23,18 @@ _templates_dir.mkdir(parents=True, exist_ok=True)
 templates = Jinja2Templates(directory=str(_templates_dir))
 
 
-import os  # noqa: E402
+def _resolve_state_dir() -> Path:
+    """Prefer CVLY_CACHE_DIR; under pytest never touch the real ./cache."""
+    override = os.environ.get("CVLY_CACHE_DIR")
+    if override:
+        return Path(override)
+    # PYTEST_VERSION is set when pytest starts (unlike PYTEST_CURRENT_TEST)
+    if os.environ.get("PYTEST_VERSION") is not None or "pytest" in sys.modules:
+        return Path(tempfile.gettempdir()) / "cvly_test_cache"
+    return BASE_DIR / "cache"
 
-if "PYTEST_CURRENT_TEST" in os.environ or "pytest" in os.environ.get("_", "").lower():
-    import tempfile
-    _STATE_DIR = Path(tempfile.gettempdir()) / "cvly_test_cache"
-else:
-    _STATE_DIR = Path(__file__).resolve().parent.parent / "cache"
+
+_STATE_DIR = _resolve_state_dir()
 
 _RESUME_FILE = _STATE_DIR / "resume_profile.json"
 _PREFERENCES_FILE = _STATE_DIR / "preferences.json"

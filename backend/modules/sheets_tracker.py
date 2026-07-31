@@ -1,3 +1,4 @@
+"""Google Sheets tracker for approved job applications."""
 from __future__ import annotations
 
 import logging

@@ -1,3 +1,4 @@
+"""CV-JD matching: keyword scoring, embeddings, and MatchResult assembly."""
 from __future__ import annotations
 
 import logging

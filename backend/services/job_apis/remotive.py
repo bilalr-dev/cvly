@@ -14,6 +14,7 @@ import aiohttp
 
 from backend.models.job import RawJobPosting
 from backend.utils.dedup import generate_posting_id
+from backend.utils.location_filter import filter_by_location
 
 logger = logging.getLogger(__name__)
 
@@ -76,30 +77,25 @@ class RemotiveClient:
                 logger.debug("Skipping Remotive item: %s", e)
                 continue
 
-        # Client-side location filter
-        user_location = preferences.location.split(",")[0].strip().lower() if getattr(preferences, "location", None) else ""
-        remote_ok = getattr(preferences, "remote_ok", False)
-
+        user_location = (
+            preferences.location.split(",")[0].strip()
+            if getattr(preferences, "location", None)
+            else ""
+        )
+        before = len(results)
+        results = filter_by_location(
+            postings=results,
+            user_location=user_location,
+            remote_ok=getattr(preferences, "remote_ok", False),
+        )
         if user_location:
-            location_filtered = []
-            for posting in results:
-                loc_lower = posting.location.lower()
-
-                # Keep if location mentions user's city or country
-                if user_location in loc_lower:
-                    location_filtered.append(posting)
-                    continue
-
-                # Only keep remote/worldwide if user explicitly allows remote
-                if remote_ok:
-                    location_filtered.append(posting)
-                    continue
-
-                # Remote is OFF: drop everything that doesn't match the city
-
-            logger.debug("Remotive location filter: %d → %d (location='%s', remote_ok=%s)",
-                       len(results), len(location_filtered), user_location, remote_ok)
-            results = location_filtered
+            logger.debug(
+                "Remotive location filter: %d → %d (location='%s', remote_ok=%s)",
+                before,
+                len(results),
+                user_location,
+                getattr(preferences, "remote_ok", False),
+            )
 
         logger.debug("Remotive returned %d results", len(results))
         return results

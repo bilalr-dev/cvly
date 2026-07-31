@@ -26,7 +26,7 @@ async def analyse_atf(
 
     combined = f"{sys_prompt}\n\n{user_prompt}"
 
-    res = gemini_service.generate_json(
+    res = await gemini_service.agenerate_json(
         combined,
         response_schema=ATFAnalysis,
         temperature=0.3
