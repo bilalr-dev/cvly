@@ -59,7 +59,7 @@ async def analyse_keywords(
         .replace("{missing_keywords}", ", ".join(missing_keywords))
     )
 
-    return gemini_service.generate_json(
+    return await gemini_service.agenerate_json(
         prompt=prompt,
         response_schema=KeywordAnalysisResult,
         temperature=0.0,  # deterministic classification restricts creativity
@@ -130,8 +130,9 @@ async def rewrite_bullets(
         .replace("{alternance_rhythm}", alt_rhythm)
     )
 
-    return gemini_service.generate_json(
+    return await gemini_service.agenerate_json(
         prompt=prompt,
         response_schema=TailoredOutput,
         temperature=0.2  # prevents creative drift
     )
+

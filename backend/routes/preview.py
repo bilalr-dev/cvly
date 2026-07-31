@@ -26,7 +26,9 @@ from backend.prompts import TRANSLATION_PROMPT
 from backend.services.gemini_llm import GeminiAPIError, GeminiLLMService
 from backend.state import app_state, get_translations, save_pipeline_data, templates
 from backend.utils.constants import (
+    CRITICAL_REVIEW_ACHIEVEMENT_LIMIT,
     FRENCH_DETECTION_WORDS,
+    MAX_KEYWORD_INJECTION_WORDS,
     MIN_BULLET_LENGTH,
     SEVERITY_LABELS,
     VIOLATION_LABELS,
@@ -56,12 +58,12 @@ def _is_valid_bullet(text: str) -> bool:
     if len(text) < MIN_BULLET_LENGTH:
         return False
     # Starts with a lowercase tech keyword pattern (no verb)
-    if re.match(r"^[a-z][\w\s\-\.]*$", text) and len(text.split()) <= 5:
+    if re.match(r"^[a-z][\w\s\-\.]*$", text) and len(text.split()) <= MAX_KEYWORD_INJECTION_WORDS:
         return False
     return True
 
 
-def _translate(gemini: GeminiLLMService, content: str, target_language: str) -> str:
+async def _translate(gemini: GeminiLLMService, content: str, target_language: str) -> str:
     if not content or not content.strip():
         return content
     prompt = (TRANSLATION_PROMPT
@@ -69,13 +71,13 @@ def _translate(gemini: GeminiLLMService, content: str, target_language: str) -> 
         .replace("{content}", content)
     )
     try:
-        return gemini.generate_text(prompt, temperature=0.0)
+        return await gemini.agenerate_text(prompt, temperature=0.0)
     except (RuntimeError, ValueError) as e:
         logger.warning("Translation failed: %s", e)
         return content  # fallback to original on error
 
 
-def _translate_markers(text: str, gemini: GeminiLLMService, target_language: str) -> str:
+async def _translate_markers(text: str, gemini: GeminiLLMService, target_language: str) -> str:
     """Find all __TRANSLATE__...__ markers and translate them in one batch call."""
     pattern = re.compile(r"__TRANSLATE__(.*?)__", re.DOTALL)
     matches = pattern.findall(text)
@@ -90,7 +92,7 @@ def _translate_markers(text: str, gemini: GeminiLLMService, target_language: str
             .replace("{target_language}", target_language)
             .replace("{content}", batch)
         )
-        raw = gemini.generate_text(batch_prompt, temperature=0.0)
+        raw = await gemini.agenerate_text(batch_prompt, temperature=0.0)
         parts = raw.split("---")
         translated = [re.sub(r"^\s*\d+\.\s*", "", p.strip()) for p in parts]
 
@@ -195,6 +197,124 @@ async def _run_evaluator(tailored_output: Any, gemini: GeminiLLMService, job_des
     return eval_warnings
 
 
+def _warning_from_issue(
+    issue: dict[str, Any],
+    violation_labels: dict[str, str],
+    severity_labels: dict[str, str],
+    severity: str,
+) -> dict[str, str]:
+    """Map a critical-evaluator issue dict to a UI warning."""
+    issue_type = issue.get("type", "other")
+    human_severity = severity_labels.get(severity, severity)
+    return {
+        "term": violation_labels.get(issue_type, violation_labels["other"]),
+        "severity": severity,
+        "context": f"{human_severity}: {issue.get('explanation', '')}",
+    }
+
+
+def _resume_achievements(resume: Any) -> list[str]:
+    """Flatten experience bullets from a resume profile."""
+    achievements: list[str] = []
+    for exp in getattr(resume, "experience", []) or []:
+        for bullet in getattr(exp, "bullets", []) or []:
+            if isinstance(bullet, str):
+                achievements.append(bullet)
+    return achievements
+
+
+async def _critical_bullet_warnings(
+    critic: Any,
+    tailored_output: Any,
+    job: dict[str, Any],
+    language: str,
+    violation_labels: dict[str, str],
+    severity_labels: dict[str, str],
+) -> list[dict]:
+    """Run Groq bullet review and convert issues to warnings."""
+    orig_texts = [rb.original for rb in tailored_output.rewritten_experience_bullets]
+    rewritten_texts = [rb.rewritten for rb in tailored_output.rewritten_experience_bullets]
+    if not orig_texts or not rewritten_texts:
+        return []
+
+    review = await critic.review_bullets(
+        original_bullets=orig_texts,
+        rewritten_bullets=rewritten_texts,
+        job_description=job.get("description", ""),
+        language=language,
+    )
+    return [
+        _warning_from_issue(issue, violation_labels, severity_labels, "HIGH")
+        for issue in review.get("issues", [])
+    ]
+
+
+async def _critical_cover_warnings(
+    critic: Any,
+    cover_letter_text: str,
+    job: dict[str, Any],
+    resume: Any,
+    language: str,
+    violation_labels: dict[str, str],
+    severity_labels: dict[str, str],
+) -> list[dict]:
+    """Run Groq cover-letter review and convert issues to warnings."""
+    if not cover_letter_text:
+        return []
+
+    review = await critic.review_cover_letter(
+        cover_letter_text=cover_letter_text,
+        candidate_summary=getattr(resume, "summary", "") if resume else "",
+        candidate_achievements=_resume_achievements(resume)[:CRITICAL_REVIEW_ACHIEVEMENT_LIMIT],
+        target_company=job.get("company", ""),
+        job_description=job.get("description", ""),
+        language=language,
+    )
+    warnings = []
+    for issue in review.get("issues", []):
+        severity = "HIGH" if issue.get("type") == "entity_bleed" else "MEDIUM"
+        warnings.append(
+            _warning_from_issue(issue, violation_labels, severity_labels, severity)
+        )
+    return warnings
+
+
+async def _run_critical_evaluator(
+    tailored_output: Any,
+    cover_letter_text: str,
+    job: dict[str, Any],
+    resume: Any,
+    language: str,
+) -> list[dict]:
+    """Independent Groq/Llama review (optional maker-checker). Skips if no GROQ_API_KEY."""
+    settings = get_settings()
+    if not settings.groq_api_key:
+        return []
+
+    violation_labels = VIOLATION_LABELS.get(language, VIOLATION_LABELS["en"])
+    severity_labels = SEVERITY_LABELS.get(language, SEVERITY_LABELS["en"])
+
+    try:
+        # Conditional imports: only load Groq stack when configured
+        from backend.modules.critical_evaluator import CriticalEvaluator
+        from backend.services.groq_llm import GroqLLMService
+
+        critic = CriticalEvaluator(GroqLLMService(api_key=settings.groq_api_key))
+        bullet_warnings, cover_warnings = await asyncio.gather(
+            _critical_bullet_warnings(
+                critic, tailored_output, job, language, violation_labels, severity_labels,
+            ),
+            _critical_cover_warnings(
+                critic, cover_letter_text, job, resume, language,
+                violation_labels, severity_labels,
+            ),
+        )
+        return bullet_warnings + cover_warnings
+    except Exception as e:
+        logger.debug("Critical evaluator skipped: %s", e)
+        return []
+
+
 def _detect_resume_language(resume: Any) -> str:
     """Detect French vs English based on French stopwords presence in raw bullet points."""
     all_bullets = " " + " ".join(
@@ -239,7 +359,7 @@ def _preview_context(request: Request, job: dict, language: str, t: dict, tailor
     }
 
 
-def _translate_full_document(
+async def _translate_full_document(
     resume_md_raw: str,
     gemini: GeminiLLMService,
     lang_name: str,
@@ -250,13 +370,13 @@ def _translate_full_document(
         .replace("{content}", resume_md_raw)
     )
     try:
-        return gemini.generate_text(translation_prompt_text, temperature=0.0)
+        return await gemini.agenerate_text(translation_prompt_text, temperature=0.0)
     except GeminiAPIError as e:
         logger.warning("Document translation failed, using markers: %s", e)
         return resume_md_raw
 
 
-def _translate_summary_and_skills(
+async def _translate_summary_and_skills(
     resume: Any,
     tailored_data: dict,
     gemini: GeminiLLMService,
@@ -278,7 +398,7 @@ def _translate_summary_and_skills(
         .replace("{content}", batch)
     )
     try:
-        translated_batch = gemini.generate_text(batch_prompt, temperature=0.0)
+        translated_batch = await gemini.agenerate_text(batch_prompt, temperature=0.0)
         parts = translated_batch.split("---ITEM---")
         while len(parts) < len(items):
             parts.append(items[len(parts)])
@@ -297,7 +417,7 @@ def _translate_summary_and_skills(
         logger.warning("Batch translation failed: %s", e)
 
 
-def _render_and_translate(resume: Any, tailored_data: dict, jd: Any, gemini: GeminiLLMService, language: str) -> str:
+async def _render_and_translate(resume: Any, tailored_data: dict, jd: Any, gemini: GeminiLLMService, language: str) -> str:
     """Complete document rendering logic including potential full vs partial translations."""
     resume_md_raw = generate_resume_markdown_raw(
         resume=resume,
@@ -316,9 +436,9 @@ def _render_and_translate(resume: Any, tailored_data: dict, jd: Any, gemini: Gem
     )
 
     if should_translate and not bullet_pairs:
-        resume_md_raw = _translate_full_document(resume_md_raw, gemini, lang_name)
+        resume_md_raw = await _translate_full_document(resume_md_raw, gemini, lang_name)
     elif should_translate:
-        _translate_summary_and_skills(resume, tailored_data, gemini, lang_name)
+        await _translate_summary_and_skills(resume, tailored_data, gemini, lang_name)
         resume_md_raw = generate_resume_markdown_raw(
             resume=resume,
             tailored=tailored_data,
@@ -327,7 +447,7 @@ def _render_and_translate(resume: Any, tailored_data: dict, jd: Any, gemini: Gem
         )
 
     if "__TRANSLATE__" in resume_md_raw:
-        resume_md_raw = _translate_markers(resume_md_raw, gemini, lang_name)
+        resume_md_raw = await _translate_markers(resume_md_raw, gemini, lang_name)
 
     return md_lib.markdown(resume_md_raw, extensions=["nl2br", "tables"])
 
@@ -441,16 +561,34 @@ async def preview_job(request: Request, job_id: str) -> HTMLResponse:
         if isinstance(resume, BaseModel):
             resume = resume.model_copy(deep=True)
 
-        tailored_output = await _run_tailoring(resume, jd, job["match"], gemini, language, country)
-        cover_letter = await generate_cover_letter(resume, jd, job["match"], gemini, language, country)
+        # Phase A: rewrite and cover letter are independent (both need resume/JD only)
+        tailored_output, cover_letter = await asyncio.gather(
+            _run_tailoring(resume, jd, job["match"], gemini, language, country),
+            generate_cover_letter(resume, jd, job["match"], gemini, language, country),
+        )
 
         warnings = check_hallucinations(tailored_output, resume)
-        eval_warnings = await _run_evaluator(tailored_output, gemini, job["description"], language)
 
-        all_warnings = [{"term": w.term, "severity": w.severity, "context": w.context_sentence} for w in warnings] + eval_warnings
+        # Phase B: Gemini + Groq evaluators are independent maker-checkers
+        eval_warnings, groq_warnings = await asyncio.gather(
+            _run_evaluator(tailored_output, gemini, job["description"], language),
+            _run_critical_evaluator(
+                tailored_output=tailored_output,
+                cover_letter_text=cover_letter,
+                job=job,
+                resume=resume,
+                language=language,
+            ),
+        )
+
+        all_warnings = (
+            [{"term": w.term, "severity": w.severity, "context": w.context_sentence} for w in warnings]
+            + eval_warnings
+            + groq_warnings
+        )
 
         tailored_data = _build_tailored_data(tailored_output, cover_letter, all_warnings)
-        resume_md = _render_and_translate(resume, tailored_data, jd, gemini, language)
+        resume_md = await _render_and_translate(resume, tailored_data, jd, gemini, language)
         tailored_data["resume_markdown"] = _sanitize_html(resume_md)
 
         tailored_cache[f"{job_id}_{language}"] = tailored_data

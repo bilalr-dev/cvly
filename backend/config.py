@@ -18,6 +18,8 @@ class AppSettings(BaseSettings):
 
     google_sheet_id: str | None = None
 
+    groq_api_key: str | None = None
+
     jsearch_api_key: str | None = None
 
     app_port: int = 8000

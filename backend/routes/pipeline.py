@@ -21,6 +21,7 @@ from backend.services.gemini_llm import GeminiAPIError, GeminiLLMService
 from backend.services.job_apis.adzuna import AdzunaClient
 from backend.services.job_apis.arbeitnow import ArbeitnowClient
 from backend.services.job_apis.france_travail import FranceTravailClient
+from backend.services.job_apis.jobicy import JobicyClient
 from backend.services.job_apis.jsearch import JSearchClient
 from backend.services.job_apis.remotive import RemotiveClient
 from backend.services.rate_limiter import AsyncRateLimiter
@@ -72,6 +73,9 @@ def _build_api_clients(settings: AppSettings) -> list[Any]:
 
     api_clients.append(RemotiveClient())
     logger.debug("Remotive client configured")
+
+    api_clients.append(JobicyClient())
+    logger.debug("Jobicy client configured (free, no key)")
 
     return api_clients
 
@@ -217,7 +221,9 @@ def _filter_by_title_relevance(postings: list, search_titles: list[str]) -> list
     search_titles_lower = [t.lower() for t in search_titles]
     relevance_keywords = set()
     for title in search_titles_lower:
-        relevance_keywords.update(title.split())
+        # Split on spaces and hyphens so "full-stack" matches title tokens
+        # "full" / "stack" after title_lower.replace("-", " ")
+        relevance_keywords.update(title.replace("-", " ").split())
         relevance_keywords.add(title.replace(" ", "-"))
         relevance_keywords.add(title)
 
@@ -234,8 +240,14 @@ def _filter_by_title_relevance(postings: list, search_titles: list[str]) -> list
 
         if overlap:
             relevant_postings.append(p)
-        elif p.description_text and any(kw in p.description_text.lower() for kw in search_titles_lower):
-            relevant_postings.append(p)
+        elif getattr(p, "source", None) != "jobicy" and p.description_text:
+            # Only the opening summary — full descriptions often mention search
+            # terms in company blurbs or requirements for unrelated roles.
+            # Jobicy is excluded: its tag search already injects those blurbs
+            # (e.g. "full-stack AI platform" in an About section for a TPM role).
+            desc_preview = p.description_text[:200].lower()
+            if any(kw in desc_preview for kw in search_titles_lower):
+                relevant_postings.append(p)
         else:
             skipped_postings.append(p)
 

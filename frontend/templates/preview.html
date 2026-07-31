@@ -40,9 +40,8 @@
         <div class="font-semibold text-yellow-800 text-sm mb-1">{{ t.get("hallucination_section_title", "Points à vérifier") }}</div>
         <div class="text-sm text-yellow-700">
             {% for w in tailored.warnings %}
-            <div class="flex items-start gap-2 mb-1">
-                <span class="w-2 h-2 rounded-full flex-shrink-0 mt-1.5 {% if w.severity == 'HIGH' %}bg-red-500{% elif w.severity == 'MEDIUM' %}bg-amber-500{% else %}bg-yellow-400{% endif %}"></span>
-                <span>"<strong>{{ w.term }}</strong>": {% if w.severity == 'HIGH' %}<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="inline w-4 h-4 text-red-500 -mt-0.5 mr-0.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>{% endif %}{{ w.context }}</span>
+            <div class="mb-1">
+                <span>"<strong>{{ w.term }}</strong>": {{ w.context }}</span>
             </div>
             {% endfor %}
         </div>

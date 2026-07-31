@@ -1,3 +1,4 @@
+"""Resume text extraction and Gemini-based structured parsing."""
 from __future__ import annotations
 
 from pathlib import Path

@@ -14,6 +14,7 @@ import aiohttp
 
 from backend.models.job import RawJobPosting
 from backend.utils.dedup import generate_posting_id
+from backend.utils.location_filter import filter_by_location
 
 logger = logging.getLogger(__name__)
 
@@ -79,33 +80,25 @@ class ArbeitnowClient:
                 logger.debug("Skipping Arbeitnow item: %s", e)
                 continue
 
-        # Client-side location filter
-        user_location = preferences.location.split(",")[0].strip().lower() if getattr(preferences, "location", None) else ""
-        remote_ok = getattr(preferences, "remote_ok", False)
-
+        user_location = (
+            preferences.location.split(",")[0].strip()
+            if getattr(preferences, "location", None)
+            else ""
+        )
+        before = len(results)
+        results = filter_by_location(
+            postings=results,
+            user_location=user_location,
+            remote_ok=getattr(preferences, "remote_ok", False),
+        )
         if user_location:
-            location_filtered = []
-            for posting in results:
-                loc_lower = posting.location.lower()
-
-                # Always keep if location matches user's city
-                if user_location in loc_lower:
-                    location_filtered.append(posting)
-                    continue
-
-                # If remote is allowed, keep remote/worldwide jobs
-                if remote_ok and any(kw in loc_lower for kw in [
-                    "remote", "télétravail", "anywhere", "worldwide",
-                    "europe", "eu", "emea",
-                ]):
-                    location_filtered.append(posting)
-                    continue
-
-                # Everything else is dropped
-
-            logger.debug("Arbeitnow location filter: %d → %d (location='%s', remote_ok=%s)",
-                       len(results), len(location_filtered), user_location, remote_ok)
-            results = location_filtered
+            logger.debug(
+                "Arbeitnow location filter: %d → %d (location='%s', remote_ok=%s)",
+                before,
+                len(results),
+                user_location,
+                getattr(preferences, "remote_ok", False),
+            )
 
         logger.debug("Arbeitnow returned %d results", len(results))
         return results

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 
+from backend.utils.constants import LANGUAGE_DISPLAY_NAMES, PROMPT_NOT_PROVIDED
 from backend.models.tailoring import EvaluatorVerdict
 from backend.prompts import EVALUATOR_AGENT_PROMPT
 from backend.services.gemini_llm import GeminiAPIError, GeminiLLMService
@@ -54,15 +55,16 @@ async def evaluate_tailored_output(
         f"{i + 1}. {b}" for i, b in enumerate(rewritten_bullets)
     )
 
+    lang_name = LANGUAGE_DISPLAY_NAMES.get(language, LANGUAGE_DISPLAY_NAMES["en"])
     prompt = (EVALUATOR_AGENT_PROMPT
         .replace("{original_bullets}", orig_formatted)
         .replace("{rewritten_bullets}", rewritten_formatted)
-        .replace("{job_description}", job_description or "Not provided.")
-        .replace("{language}", "French" if language == "fr" else "English")
+        .replace("{job_description}", job_description or PROMPT_NOT_PROVIDED)
+        .replace("{language}", lang_name)
     )
 
     try:
-        verdict = gemini_service.generate_json(
+        verdict = await gemini_service.agenerate_json(
             prompt=prompt,
             response_schema=EvaluatorVerdict,
             temperature=0.0,  # strict factual comparison

@@ -76,4 +76,4 @@ async def generate_cover_letter(
         .replace("{candidate_name}", str(candidate_name))
     )
 
-    return gemini_service.generate_text(prompt, temperature=0.3)  # prevents content fabrication (reduced from 0.5)
+    return await gemini_service.agenerate_text(prompt, temperature=0.3)  # prevents content fabrication (reduced from 0.5)
