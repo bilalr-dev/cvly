@@ -10,10 +10,10 @@ from __future__ import annotations
 
 import logging
 
-from backend.utils.constants import LANGUAGE_DISPLAY_NAMES, PROMPT_NOT_PROVIDED
 from backend.models.tailoring import EvaluatorVerdict
 from backend.prompts import EVALUATOR_AGENT_PROMPT
 from backend.services.gemini_llm import GeminiAPIError, GeminiLLMService
+from backend.utils.constants import PROMPT_NOT_PROVIDED, get_language_display_name
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ async def evaluate_tailored_output(
         f"{i + 1}. {b}" for i, b in enumerate(rewritten_bullets)
     )
 
-    lang_name = LANGUAGE_DISPLAY_NAMES.get(language, LANGUAGE_DISPLAY_NAMES["en"])
+    lang_name = get_language_display_name(language)
     prompt = (EVALUATOR_AGENT_PROMPT
         .replace("{original_bullets}", orig_formatted)
         .replace("{rewritten_bullets}", rewritten_formatted)

@@ -20,16 +20,12 @@ from backend.prompts import (
 )
 from backend.services.groq_llm import GroqAPIError, GroqLLMService
 from backend.utils.constants import (
-    LANGUAGE_DISPLAY_NAMES,
     PROMPT_NONE_LISTED,
     PROMPT_NOT_PROVIDED,
+    get_language_display_name,
 )
 
 logger = logging.getLogger(__name__)
-
-
-def _language_name(language: str) -> str:
-    return LANGUAGE_DISPLAY_NAMES.get(language, LANGUAGE_DISPLAY_NAMES["en"])
 
 
 def _failed_review(error: Exception) -> dict[str, Any]:
@@ -58,7 +54,7 @@ class CriticalEvaluator:
             original_bullets="\n".join(f"- {b}" for b in original_bullets),
             rewritten_bullets="\n".join(f"- {b}" for b in rewritten_bullets),
             job_description=job_description or PROMPT_NOT_PROVIDED,
-            language=_language_name(language),
+            language=get_language_display_name(language),
         )
         try:
             return await self.groq.evaluate(CRITICAL_EVALUATOR_SYSTEM_PROMPT, prompt)
@@ -87,7 +83,7 @@ class CriticalEvaluator:
             candidate_achievements=achievements_text,
             target_company=target_company,
             job_description=job_description or PROMPT_NOT_PROVIDED,
-            language=_language_name(language),
+            language=get_language_display_name(language),
         )
         try:
             return await self.groq.evaluate(CRITICAL_EVALUATOR_SYSTEM_PROMPT, prompt)
@@ -106,8 +102,8 @@ class CriticalEvaluator:
         prompt = CRITICAL_REVIEW_CV_PROMPT.format(
             cv_markdown=cv_markdown,
             original_resume=original_resume_text or PROMPT_NOT_PROVIDED,
-            target_language=_language_name(target_language),
-            language=_language_name(language),
+            target_language=get_language_display_name(target_language),
+            language=get_language_display_name(language),
         )
         try:
             return await self.groq.evaluate(CRITICAL_EVALUATOR_SYSTEM_PROMPT, prompt)

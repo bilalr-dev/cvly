@@ -8,7 +8,7 @@ import aiohttp
 
 from backend.models.job import RawJobPosting
 from backend.models.preferences import SearchPreferences
-from backend.utils.constants import JSEARCH_DEFAULT_PARAMS
+from backend.utils.constants import DEFAULT_JOB_SEARCH_TERM, JSEARCH_DEFAULT_PARAMS
 from backend.utils.dedup import generate_posting_id
 
 from .base import BaseJobAPIClient
@@ -52,7 +52,7 @@ class JSearchClient(BaseJobAPIClient):
 
                 params = {
                     **JSEARCH_DEFAULT_PARAMS,
-                    "query": " ".join(query_parts) if query_parts else "developer",
+                    "query": " ".join(query_parts) if query_parts else DEFAULT_JOB_SEARCH_TERM,
                 }
                 country = getattr(preferences, "country", "FR").lower()
                 params["country"] = country

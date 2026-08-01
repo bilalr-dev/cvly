@@ -58,9 +58,11 @@ def _is_valid_bullet(text: str) -> bool:
     if len(text) < MIN_BULLET_LENGTH:
         return False
     # Starts with a lowercase tech keyword pattern (no verb)
-    if re.match(r"^[a-z][\w\s\-\.]*$", text) and len(text.split()) <= MAX_KEYWORD_INJECTION_WORDS:
-        return False
-    return True
+    is_keyword_injection = bool(
+        re.match(r"^[a-z][\w\s\-\.]*$", text)
+        and len(text.split()) <= MAX_KEYWORD_INJECTION_WORDS
+    )
+    return not is_keyword_injection
 
 
 async def _translate(gemini: GeminiLLMService, content: str, target_language: str) -> str:
@@ -72,7 +74,7 @@ async def _translate(gemini: GeminiLLMService, content: str, target_language: st
     )
     try:
         return await gemini.agenerate_text(prompt, temperature=0.0)
-    except (RuntimeError, ValueError) as e:
+    except (RuntimeError, ValueError, GeminiAPIError) as e:
         logger.warning("Translation failed: %s", e)
         return content  # fallback to original on error
 
@@ -110,7 +112,8 @@ async def _translate_markers(text: str, gemini: GeminiLLMService, target_languag
 
         return pattern.sub(replacer, text)
 
-    except Exception:
+    except (GeminiAPIError, RuntimeError, ValueError) as e:
+        logger.debug("Marker translation failed: %s", e)
         # Fallback: remove markers, keep original text
         return pattern.sub(lambda m: m.group(1), text)
 
@@ -215,54 +218,46 @@ def _warning_from_issue(
 
 def _resume_achievements(resume: Any) -> list[str]:
     """Flatten experience bullets from a resume profile."""
-    achievements: list[str] = []
-    for exp in getattr(resume, "experience", []) or []:
-        for bullet in getattr(exp, "bullets", []) or []:
-            if isinstance(bullet, str):
-                achievements.append(bullet)
-    return achievements
+    return [
+        bullet
+        for exp in getattr(resume, "experience", []) or []
+        for bullet in getattr(exp, "bullets", []) or []
+        if isinstance(bullet, str)
+    ]
 
 
-async def _critical_bullet_warnings(
+async def _fetch_bullet_review(
     critic: Any,
     tailored_output: Any,
     job: dict[str, Any],
     language: str,
-    violation_labels: dict[str, str],
-    severity_labels: dict[str, str],
-) -> list[dict]:
-    """Run Groq bullet review and convert issues to warnings."""
+) -> dict[str, Any]:
+    """Run Groq bullet review; return raw review dict."""
     orig_texts = [rb.original for rb in tailored_output.rewritten_experience_bullets]
     rewritten_texts = [rb.rewritten for rb in tailored_output.rewritten_experience_bullets]
     if not orig_texts or not rewritten_texts:
-        return []
+        return {"issues": []}
 
-    review = await critic.review_bullets(
+    return await critic.review_bullets(
         original_bullets=orig_texts,
         rewritten_bullets=rewritten_texts,
         job_description=job.get("description", ""),
         language=language,
     )
-    return [
-        _warning_from_issue(issue, violation_labels, severity_labels, "HIGH")
-        for issue in review.get("issues", [])
-    ]
 
 
-async def _critical_cover_warnings(
+async def _fetch_cover_review(
     critic: Any,
     cover_letter_text: str,
     job: dict[str, Any],
     resume: Any,
     language: str,
-    violation_labels: dict[str, str],
-    severity_labels: dict[str, str],
-) -> list[dict]:
-    """Run Groq cover-letter review and convert issues to warnings."""
+) -> dict[str, Any]:
+    """Run Groq cover-letter review; return raw review dict."""
     if not cover_letter_text:
-        return []
+        return {"issues": []}
 
-    review = await critic.review_cover_letter(
+    return await critic.review_cover_letter(
         cover_letter_text=cover_letter_text,
         candidate_summary=getattr(resume, "summary", "") if resume else "",
         candidate_achievements=_resume_achievements(resume)[:CRITICAL_REVIEW_ACHIEVEMENT_LIMIT],
@@ -270,50 +265,191 @@ async def _critical_cover_warnings(
         job_description=job.get("description", ""),
         language=language,
     )
-    warnings = []
-    for issue in review.get("issues", []):
-        severity = "HIGH" if issue.get("type") == "entity_bleed" else "MEDIUM"
-        warnings.append(
-            _warning_from_issue(issue, violation_labels, severity_labels, severity)
+
+
+def _bullet_issue_warnings(
+    issues: list[dict],
+    violation_labels: dict[str, str],
+    severity_labels: dict[str, str],
+) -> list[dict]:
+    return [
+        _warning_from_issue(issue, violation_labels, severity_labels, "HIGH")
+        for issue in issues
+    ]
+
+
+def _cover_issue_warnings(
+    issues: list[dict],
+    violation_labels: dict[str, str],
+    severity_labels: dict[str, str],
+) -> list[dict]:
+    return [
+        _warning_from_issue(
+            issue,
+            violation_labels,
+            severity_labels,
+            "HIGH" if issue.get("type") == "entity_bleed" else "MEDIUM",
         )
-    return warnings
+        for issue in issues
+    ]
 
 
-async def _run_critical_evaluator(
+def _apply_corrected_bullets(tailored_output: Any, corrected_bullets: list[str]) -> Any:
+    """Replace rewritten text on each bullet; preserve original + keywords."""
+    updated = [
+        rb.model_copy(update={"rewritten": corrected_bullets[i]})
+        if i < len(corrected_bullets)
+        else rb
+        for i, rb in enumerate(tailored_output.rewritten_experience_bullets)
+    ]
+    return tailored_output.model_copy(update={"rewritten_experience_bullets": updated})
+
+
+async def _identity(value: Any) -> Any:
+    return value
+
+
+async def _gemini_correct_outputs(
+    critic_inputs: tuple[list[str], list[str], str],
+    bullet_issues: list[dict],
+    cover_issues: list[dict],
+    gemini: GeminiLLMService,
+    language: str,
+) -> tuple[list[str], str]:
+    """Run Gemini correction for bullets and cover letter in parallel."""
+    from backend.modules.self_corrector import correct_bullets, correct_cover_letter
+
+    orig_texts, rewritten_texts, cover_letter_text = critic_inputs
+    return await asyncio.gather(
+        correct_bullets(
+            original_bullets=orig_texts,
+            rewritten_bullets=rewritten_texts,
+            issues=bullet_issues,
+            gemini_service=gemini,
+            language=language,
+        ) if bullet_issues else _identity(rewritten_texts),
+        correct_cover_letter(
+            cover_letter=cover_letter_text,
+            issues=cover_issues,
+            gemini_service=gemini,
+            language=language,
+        ) if cover_issues else _identity(cover_letter_text),
+    )
+
+
+async def _rereview_corrected(
+    critic: Any,
+    orig_texts: list[str],
+    corrected_bullets: list[str],
+    corrected_cover: str,
+    job: dict[str, Any],
+    resume: Any,
+    language: str,
+    bullet_issues: list[dict],
+    cover_issues: list[dict],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Re-run Groq only on tracks that had issues."""
+    return await asyncio.gather(
+        critic.review_bullets(
+            original_bullets=orig_texts,
+            rewritten_bullets=corrected_bullets,
+            job_description=job.get("description", ""),
+            language=language,
+        ) if bullet_issues else _identity({"issues": []}),
+        critic.review_cover_letter(
+            cover_letter_text=corrected_cover,
+            candidate_summary=getattr(resume, "summary", "") if resume else "",
+            candidate_achievements=_resume_achievements(resume)[:CRITICAL_REVIEW_ACHIEVEMENT_LIMIT],
+            target_company=job.get("company", ""),
+            job_description=job.get("description", ""),
+            language=language,
+        ) if cover_issues else _identity({"issues": []}),
+    )
+
+
+async def _run_critical_with_correction(  # noqa: PLR0913
     tailored_output: Any,
     cover_letter_text: str,
     job: dict[str, Any],
     resume: Any,
     language: str,
-) -> list[dict]:
-    """Independent Groq/Llama review (optional maker-checker). Skips if no GROQ_API_KEY."""
+    gemini: GeminiLLMService,
+) -> tuple[Any, str, list[dict]]:
+    """Groq review → optional one-round Gemini correction → Groq re-review.
+
+    Returns (possibly corrected tailored_output, cover_letter, remaining warnings).
+    Only issues that persist after correction are returned as warnings.
+    """
     settings = get_settings()
     if not settings.groq_api_key:
-        return []
+        return tailored_output, cover_letter_text, []
 
     violation_labels = VIOLATION_LABELS.get(language, VIOLATION_LABELS["en"])
     severity_labels = SEVERITY_LABELS.get(language, SEVERITY_LABELS["en"])
 
     try:
-        # Conditional imports: only load Groq stack when configured
         from backend.modules.critical_evaluator import CriticalEvaluator
-        from backend.services.groq_llm import GroqLLMService
+        from backend.services.groq_llm import GroqAPIError, GroqLLMService
+    except ImportError as e:
+        logger.debug("Critical evaluator unavailable: %s", e)
+        return tailored_output, cover_letter_text, []
 
+    try:
         critic = CriticalEvaluator(GroqLLMService(api_key=settings.groq_api_key))
-        bullet_warnings, cover_warnings = await asyncio.gather(
-            _critical_bullet_warnings(
-                critic, tailored_output, job, language, violation_labels, severity_labels,
-            ),
-            _critical_cover_warnings(
-                critic, cover_letter_text, job, resume, language,
-                violation_labels, severity_labels,
-            ),
+        bullet_review, cover_review = await asyncio.gather(
+            _fetch_bullet_review(critic, tailored_output, job, language),
+            _fetch_cover_review(critic, cover_letter_text, job, resume, language),
         )
-        return bullet_warnings + cover_warnings
-    except Exception as e:
-        logger.debug("Critical evaluator skipped: %s", e)
-        return []
 
+        bullet_issues = list(bullet_review.get("issues") or [])
+        cover_issues = list(cover_review.get("issues") or [])
+        if not bullet_issues and not cover_issues:
+            return tailored_output, cover_letter_text, []
+
+        orig_texts = [rb.original for rb in tailored_output.rewritten_experience_bullets]
+        rewritten_texts = [rb.rewritten for rb in tailored_output.rewritten_experience_bullets]
+
+        corrected_bullets, corrected_cover = await _gemini_correct_outputs(
+            (orig_texts, rewritten_texts, cover_letter_text),
+            bullet_issues,
+            cover_issues,
+            gemini,
+            language,
+        )
+
+        if bullet_issues:
+            tailored_output = _apply_corrected_bullets(tailored_output, corrected_bullets)
+        if cover_issues:
+            cover_letter_text = corrected_cover
+
+        final_bullet_review, final_cover_review = await _rereview_corrected(
+            critic,
+            orig_texts,
+            corrected_bullets,
+            corrected_cover,
+            job,
+            resume,
+            language,
+            bullet_issues,
+            cover_issues,
+        )
+
+        remaining_warnings = (
+            _bullet_issue_warnings(
+                list(final_bullet_review.get("issues") or []),
+                violation_labels,
+                severity_labels,
+            )
+            + _cover_issue_warnings(
+                list(final_cover_review.get("issues") or []),
+                violation_labels,
+                severity_labels,
+            )
+        )
+        return tailored_output, cover_letter_text, remaining_warnings
+    except (GeminiAPIError, GroqAPIError, RuntimeError, ValueError, TypeError, KeyError, AttributeError) as e:
+        logger.debug("Critical evaluator / correction skipped: %s", e)
+        return tailored_output, cover_letter_text, []
 
 def _detect_resume_language(resume: Any) -> str:
     """Detect French vs English based on French stopwords presence in raw bullet points."""
@@ -567,19 +703,21 @@ async def preview_job(request: Request, job_id: str) -> HTMLResponse:
             generate_cover_letter(resume, jd, job["match"], gemini, language, country),
         )
 
-        warnings = check_hallucinations(tailored_output, resume)
-
-        # Phase B: Gemini + Groq evaluators are independent maker-checkers
-        eval_warnings, groq_warnings = await asyncio.gather(
+        # Phase B: Gemini evaluator ∥ Groq review + optional one-round correction
+        eval_warnings, (tailored_output, cover_letter, groq_warnings) = await asyncio.gather(
             _run_evaluator(tailored_output, gemini, job["description"], language),
-            _run_critical_evaluator(
+            _run_critical_with_correction(
                 tailored_output=tailored_output,
                 cover_letter_text=cover_letter,
                 job=job,
                 resume=resume,
                 language=language,
+                gemini=gemini,
             ),
         )
+
+        # Hallucination check on final (possibly corrected) bullets
+        warnings = check_hallucinations(tailored_output, resume)
 
         all_warnings = (
             [{"term": w.term, "severity": w.severity, "context": w.context_sentence} for w in warnings]

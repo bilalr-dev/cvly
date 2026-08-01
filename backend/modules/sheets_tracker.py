@@ -10,9 +10,8 @@ from gspread.utils import rowcol_to_a1
 
 from backend.models import MatchResult, ParsedJobDescription, RawJobPosting
 from backend.utils.constants import (
+    GOOGLE_SHEETS_SCOPES,
     SHEETS_TRACKER_HEADERS as _HEADERS,
-)
-from backend.utils.constants import (
     SHEETS_TRACKER_STATUS_VALUES as STATUS_VALUES,
 )
 
@@ -29,10 +28,7 @@ class SheetsTracker:
         self.worksheet = None
 
     def connect(self) -> None:
-        scopes = [
-            "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/drive.file"
-        ]
+        scopes = list(GOOGLE_SHEETS_SCOPES)
         creds = Credentials.from_service_account_file(self.credentials_path, scopes=scopes)
         self.client = gspread.authorize(creds)
 

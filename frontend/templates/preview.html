@@ -66,7 +66,7 @@
             <div class="flex items-center justify-between mb-3">
                 <h3 class="font-semibold text-base">{{ t.bullet_comparison }}</h3>
                 <form method="post" action="/preview/{{ job.id }}/regenerate">
-                    <button type="submit" class="btn-secondary flex items-center gap-1.5 transition-colors">
+                    <button type="submit" class="btn-secondary flex items-center gap-1.5 transition-colors" aria-label="{{ t.regenerate_btn }}">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
                           <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
                         </svg>
@@ -97,7 +97,7 @@
     <div class="bg-white border border-slate-200 rounded-xl p-6 mb-6">
         <div class="flex items-center justify-between mb-4">
             <h3 class="font-semibold text-base">{{ t.get("cover_letter_title", "Lettre de motivation") }}</h3>
-            <button onclick="toggleEdit(this.querySelector('span'))" class="btn-secondary flex items-center gap-1.5">
+            <button onclick="toggleEdit(this.querySelector('span'))" class="btn-secondary flex items-center gap-1.5" aria-label="{{ t.get('edit_cover_letter', 'Modifier') }}">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
                   <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
                 </svg>
@@ -115,7 +115,8 @@
                       >{{ tailored.cover_letter if tailored else "" }}</textarea>
             <div class="mt-3 flex justify-end">
                 <button onclick="saveEdits('{{ job.id }}')"
-                        class="btn-primary flex items-center gap-1.5 shadow-sm">
+                        class="btn-primary flex items-center gap-1.5 shadow-sm"
+                        aria-label="{{ t.get('save_edits', 'Enregistrer les modifications') }}">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
                     </svg>
@@ -132,6 +133,7 @@
             <h2 class="text-lg font-semibold">{{ t.get("tailored_cv_title", "CV adapté") }}</h2>
             <button onclick="copyResume(this)"
                     title="{{ t.get('copy_cv', 'Copier le CV') }}"
+                    aria-label="{{ t.get('copy_cv', 'Copier le CV') }}"
                     class="flex items-center justify-center text-slate-400 hover:text-indigo-600 border-none rounded p-1.5 cursor-pointer transition-colors bg-transparent">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" class="w-5 h-5">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" />
@@ -146,7 +148,7 @@
 
     <div class="flex items-center justify-end mt-8 mb-6">
         <form action="/preview/{{ job.id }}/approve" method="post" class="inline">
-            <button type="submit" class="btn-primary flex items-center gap-1.5 shadow-sm transition-colors">
+            <button type="submit" class="btn-primary flex items-center gap-1.5 shadow-sm transition-colors" aria-label="{{ t.get('approve_save', 'Approuver et enregistrer') }}">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                 </svg>

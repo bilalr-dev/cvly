@@ -521,6 +521,50 @@ Return JSON:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# CORRECTION — Gemini self-correction based on Groq critic feedback
+# Ref: MA-CF (Xie et al., 2026) — generator corrects based on critic feedback
+# ──────────────────────────────────────────────────────────────────────────────
+
+BULLET_CORRECTION_PROMPT: str = """You previously rewrote CV bullets for ATS optimization. An independent reviewer found issues with your output. Fix ONLY the flagged issues — do not change bullets that were not flagged.
+
+RULES:
+- Fix each flagged bullet according to the reviewer's feedback
+- Do NOT introduce new information not present in the original bullet
+- Do NOT change unflagged bullets
+- Preserve all existing keywords and formatting
+
+ORIGINAL BULLETS:
+{original_bullets}
+
+YOUR PREVIOUS REWRITE:
+{rewritten_bullets}
+
+REVIEWER FEEDBACK (fix these issues):
+{issues}
+
+Return the corrected bullets in the same JSON format as before.
+Write all content in {language}."""
+
+
+COVER_LETTER_CORRECTION_PROMPT: str = """You previously wrote a cover letter. An independent reviewer found issues. Fix ONLY the flagged issues — preserve everything else.
+
+RULES:
+- Fix each issue according to the reviewer's feedback
+- Do NOT invent new achievements
+- Do NOT change sections that were not flagged
+- Maintain the same structure and tone
+
+YOUR PREVIOUS COVER LETTER:
+{cover_letter}
+
+REVIEWER FEEDBACK (fix these issues):
+{issues}
+
+Return the corrected cover letter as plain text.
+Write entirely in {language}."""
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # TRANSLATION - Native-quality CV content translation
 # Briakou et al. 2024 (arXiv:2409.06790) · Chen et al. EAMT 2024
 # IJONIS 2026 · OpenL (arXiv:2302.09210)

@@ -30,6 +30,7 @@ from backend.utils.constants import (
     ALTERNANCE_KEYWORDS,
     SENIORITY_KEYWORDS,
     TITLE_CONTRACT_SIGNALS,
+    TITLE_DESC_PREVIEW_CHARS,
     TITLE_RELEVANCE_STOPWORDS,
     PipelineStatus,
 )
@@ -245,7 +246,7 @@ def _filter_by_title_relevance(postings: list, search_titles: list[str]) -> list
             # terms in company blurbs or requirements for unrelated roles.
             # Jobicy is excluded: its tag search already injects those blurbs
             # (e.g. "full-stack AI platform" in an About section for a TPM role).
-            desc_preview = p.description_text[:200].lower()
+            desc_preview = p.description_text[:TITLE_DESC_PREVIEW_CHARS].lower()
             if any(kw in desc_preview for kw in search_titles_lower):
                 relevant_postings.append(p)
         else:
