@@ -55,14 +55,19 @@ if not exist ".venv" (
 call .venv\Scripts\activate.bat
 
 echo Installing dependencies...
+set PIP_DISABLE_PIP_VERSION_CHECK=1
 pip install -q -r requirements.txt
 
 if not exist ".env" (
     echo.
-    echo No .env file found!
-    echo Copy .env.example to .env and fill in your API keys.
-    pause
-    exit /b 1
+    echo No .env file found — launching setup wizard...
+    echo.
+    !PYCMD! setup.py
+    if not exist ".env" (
+        echo Setup was cancelled. Cannot start without .env.
+        pause
+        exit /b 1
+    )
 )
 
 if not exist "output" mkdir output

@@ -53,17 +53,17 @@ fi
 source .venv/bin/activate
 
 echo "Installing dependencies..."
-pip install -q -r requirements.txt
+PIP_DISABLE_PIP_VERSION_CHECK=1 pip install -q -r requirements.txt
 
 if [ ! -f ".env" ]; then
     echo ""
-    echo "No .env file found!"
-    echo "Copy .env.example to .env and fill in your API keys:"
+    echo "No .env file found, launching setup wizard..."
     echo ""
-    echo "cp .env.example .env"
-    echo "nano .env"
-    echo ""
-    exit 1
+    "$PYBIN" setup.py
+    if [ ! -f ".env" ]; then
+        echo "Setup was cancelled. Cannot start without .env."
+        exit 1
+    fi
 fi
 
 mkdir -p output cache config frontend/static

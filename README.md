@@ -17,7 +17,7 @@ Assistant de candidature alimenté par l’IA, qui tourne sur votre ordinateur.
 - [2. Techniques & research](#2-techniques--research)
 - [3. Stack](#3-stack)
 - [4. Project structure](#4-project-structure)
-- [5. Environment setup](#5-environment-setup-env-file)
+- [5. Configuration (setup wizard)](#5-configuration-setup-wizard)
 - [6. How to run](#6-how-to-run)
 - [7. How to collaborate](#7-how-to-collaborate)
 ---
@@ -33,7 +33,7 @@ Cvly is a **local job-application agent**. You upload your résumé, set your se
 5. Lets you review everything before saving
 6. Optionally logs approved applications in a Google Sheet
 
-It opens in your browser at `http://localhost:8000`. No Cvly account or hosted backend is required. AI processing uses the API keys you provide in `.env`.
+It opens in your browser at `http://localhost:8000`. No Cvly account or hosted backend is required. On first launch, the **setup wizard** walks you through API keys (EN/FR) and writes `.env` for you - you do not need to edit config files by hand.
 
 **Design principles**
 
@@ -226,10 +226,11 @@ cvly/
 ├── config/                         # Place google_service_account.json here
 ├── cache/                          # Saved preferences / profile (local)
 ├── output/                         # Approved résumé & cover letters (.md)
-├── start.sh / start.bat            # One-command start
+├── setup.py                        # Interactive setup wizard (EN/FR)
+├── start.sh / start.bat            # One-command start (launches wizard if needed)
 ├── requirements.txt
 ├── requirements-dev.txt
-└── .env.example
+└── .env.example                    # Reference only - wizard creates .env
 ```
 
 **Pages**
@@ -243,194 +244,58 @@ cvly/
 
 ---
 
-## 5. Environment setup (`.env` file)
+## 5. Configuration (setup wizard)
 
-You only need to do this once.
+**Important:** you do **not** need to create or edit `.env` by hand. Cvly includes an interactive setup wizard (`setup.py`) that is the recommended way for every new user.
 
-### Step 0 - Create the file
+### Recommended - use the setup wizard
+
+The wizard:
+
+- Starts automatically the first time you run `./start.sh` or `start.bat` when `.env` is missing
+- Asks for language first (**EN** or **FR**)
+- Opens each API signup page in your browser
+- Shows click-by-click steps (Create key, copy, paste)
+- Lets you skip optional services with Enter
+- Writes a valid `.env` for you
+- Then continues and starts the app
+
+**First launch**
 
 ```bash
+git clone https://github.com/bilalr-dev/cvly.git
 cd cvly
-cp .env.example .env
+./start.sh        # macOS / Linux - wizard opens if .env is missing
+# or: start.bat   # Windows
 ```
 
-Open `.env` in any text editor. Leave unused optional keys empty.
-
----
-
-### Step 1 - Google Gemini (REQUIRED)
-
-1. Open **https://aistudio.google.com/apikey**
-2. Sign in with your Google account
-3. Click **Create API key**
-4. Copy the key into `.env`:
-
-```env
-GEMINI_API_KEY=paste_your_key_here
-```
-
-Free tier is enough for personal use (rate limits apply).
-
----
-
-### Step 2 - Groq (recommended - independent AI critic)
-
-1. Open **https://console.groq.com**
-2. Create an account / sign in
-3. Open **https://console.groq.com/keys**
-4. Create an API key and paste it:
-
-```env
-GROQ_API_KEY=paste_your_key_here
-GROQ_MODEL=llama-3.1-8b-instant
-```
-
-Keep `llama-3.1-8b-instant` unless you know you need a larger model (larger models hit free limits faster).
-
----
-
-### Step 3 - France Travail (recommended for the French market)
-
-1. Create an account at **https://francetravail.io**
-2. Open the Offres d’emploi API page: **https://francetravail.io/data/api/offres-emploi**
-3. Click **Utiliser l’API**
-4. Create an application (example name: `cvly`, example URL: `https://example.com`)
-5. **Subscribe the app to APIs** : this is a separate step from creating the app, do not skip:
-   - Click **“Ajouter une API”**
-   - Find **“Offres d’emploi v2”** → click **“Ajouter”** (required)
-   - Scroll down to the AI section and find **“ROMEO v2”** → click **“Ajouter”** (recommended)
-
-   After subscribing, your app page should show both under **“APIs souscrites”**:
-   ```
-   Offres d’emploi v2    - 10 RPS
-   ROMEO v2              - 3 RPS
-   ```
-
-   > **What is ROMEO v2?** It lets Cvly automatically map any job title (lawyer, engineer, accountant…) to French ROME occupational codes. This improves search results from La Bonne Alternance for any profession, not just IT. Without it, Cvly still works but La Bonne Alternance results may be limited.
-
-6. In the application settings, copy:
-   - **Identifiant client** (starts with `PAR_...`) → `FRANCE_TRAVAIL_CLIENT_ID`
-   - **Clé secrète** → `FRANCE_TRAVAIL_CLIENT_SECRET`
-
-```env
-FRANCE_TRAVAIL_CLIENT_ID=PAR_...
-FRANCE_TRAVAIL_CLIENT_SECRET=...
-```
-
-If you see `invalid_client`, the app is usually missing the **Offres d’emploi v2** subscription.
-
----
-
-### Step 4 - Adzuna (recommended)
-
-1. Open **https://developer.adzuna.com/**
-2. Sign up (application type: **Personal or academic research**)
-3. From the dashboard, copy App ID and App Key:
-
-```env
-ADZUNA_APP_ID=...
-ADZUNA_APP_KEY=...
-```
-
----
-
-### Step 5 - Arbeitnow, Remotive, Jobicy (automatic)
-
-No keys. They start as soon as Cvly runs.
-
----
-
-### Step 6 - JSearch / RapidAPI (optional)
-
-1. Open **https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch**
-2. Subscribe to the **BASIC** plan ($0.00/mo)
-3. Copy `X-RapidAPI-Key`:
-
-```env
-JSEARCH_API_KEY=...
-```
-
----
-
-### Step 7 - La Bonne Alternance (recommended if you search alternance / stage)
-
-1. Open **https://api.apprentissage.beta.gouv.fr/fr/compte/profil**
-2. Register with your email (you receive a login link)
-3. Complete your profile; the portal creates an **access token**
-4. Copy the token:
-
-```env
-LA_BONNE_ALTERNANCE_API_KEY=...
-```
-
-API explorer (for reference): **https://api.apprentissage.beta.gouv.fr/fr/explorer/recherche-offre**  
-Cvly only calls this API when **alternance** or **stage** is selected in Settings.
-
----
-
-### Step 8 - Google Sheets tracking (optional)
-
-**A. Service account**
-
-1. Open **https://console.cloud.google.com/apis/credentials**
-2. **+ CREATE CREDENTIALS** → **Service account** → name e.g. `cvly-sheets`
-3. Open the service account → **Keys** → **Add key** → **JSON** → download the file
-4. Move it into the project:
+**Run the wizard again later** (to change keys or redo setup):
 
 ```bash
-mkdir -p config
-mv ~/Downloads/your-downloaded-file.json config/google_service_account.json
+python3 setup.py
+# or delete .env and run ./start.sh again
 ```
 
-**B. Enable APIs**
+Only **Google Gemini** is required. Everything else can be skipped; you can add keys later by re-running the wizard.
 
-1. Enable Sheets: **https://console.cloud.google.com/apis/library/sheets.googleapis.com**
-2. Enable Drive: **https://console.cloud.google.com/apis/library/drive.googleapis.com**
+### What the wizard configures
 
-**C. Create and share the sheet**
+| Service | Required? | Notes |
+|---|---|---|
+| Gemini | Yes | Main AI |
+| Groq | Recommended | Second AI that checks Gemini output |
+| France Travail | Recommended (France) | Includes Offres d'emploi v2 + ROMEO v2 in the guided steps |
+| Adzuna | Recommended | European job listings |
+| Arbeitnow / Remotive / Jobicy | Automatic | No keys |
+| JSearch | Optional | Extra coverage via RapidAPI |
+| La Bonne Alternance | Optional | Alternance / stage |
+| Google Sheets | Optional | Track approved applications |
 
-1. Create a Google Sheet named e.g. `Cvly Job Tracker`
-2. Share it with the service account email (Editor). Find the email with:
+### Manual `.env` editing (optional - not required)
 
-```bash
-grep client_email config/google_service_account.json
-```
+Manual setup is **not required** for normal use. Prefer the wizard above.
 
-3. Copy the Sheet ID from the URL  
-   (`https://docs.google.com/spreadsheets/d/THIS_PART/edit`) → `GOOGLE_SHEET_ID`
-
-```env
-GOOGLE_SERVICE_ACCOUNT_PATH=config/google_service_account.json
-GOOGLE_SHEET_ID=...
-```
-
----
-
-### Step 9 - App defaults (already filled in `.env.example`)
-
-```env
-APP_PORT=8000
-MATCH_THRESHOLD=50
-DEFAULT_LANGUAGE=fr
-DEFAULT_COUNTRY=FR
-```
-
-Change these only if you know why.
-
----
-
-### Keys summary
-
-| Service | Required? | Free tier (indicative) | Setup time |
-|---|---|---|---|
-| Gemini | Yes | ~15 RPM, ~1,500/day | ~1 min |
-| Groq | Recommended | ~30 RPM | ~2 min |
-| France Travail | Recommended (FR) | ~1,000/day | ~5 min |
-| Adzuna | Recommended | ~250/day | ~3 min |
-| Arbeitnow / Remotive / Jobicy | Automatic | - | 0 |
-| JSearch | Optional | ~200/month | ~3 min |
-| La Bonne Alternance | Recommended for alternance/stage | Free non-commercial | ~3 min |
-| Google Sheets | Optional | - | ~10 min |
+If you really want to edit files yourself: copy `.env.example` to `.env` and fill the keys. `.env.example` is a reference template only; `start.sh` / `start.bat` will still launch the wizard when `.env` is missing.
 
 ---
 
@@ -438,16 +303,17 @@ Change these only if you know why.
 
 ### Production release (recommended for most users)
 
-Use a **tagged release**, not a random commit. Latest stable tag: **`v1.0.5`**.
+Use a **tagged release**, not a random commit. Latest stable tag: **`v1.0.6`**.
 
 All tags and release notes: [github.com/bilalr-dev/cvly/releases](https://github.com/bilalr-dev/cvly/releases)  
 All tags list: [github.com/bilalr-dev/cvly/tags](https://github.com/bilalr-dev/cvly/tags)
 
 | Tag | What it is |
 |---|---|
+| `v1.0.6` | interactive setup wizard |
 | `v1.0.5` | ROMEO v2 docs, fork contributor guide, CDN CORS fix (view page) - **use this** |
 | `v1.0.4` | Auto-install Python 3.12 in start scripts |
-| `v1.0.5` | README Markdown / anchor / badge fixes |
+| `v1.0.3` | README Markdown / anchor / badge fixes |
 | `v1.0.2` | Docs + run guide with tags |
 | `v1.0.1` | Tailwind CDN CORS fix |
 | `v1.0.0` | First production release |
@@ -458,21 +324,21 @@ All tags list: [github.com/bilalr-dev/cvly/tags](https://github.com/bilalr-dev/c
 git clone https://github.com/bilalr-dev/cvly.git
 cd cvly
 git fetch --tags
-git checkout v1.0.5
-cp .env.example .env
-# Fill .env (section 5)
-./start.sh        # macOS / Linux
-# or: ./start.bat   # Windows
+git checkout v1.0.6
+./start.sh        # macOS / Linux - launches setup wizard if .env is missing
+# or: start.bat   # Windows
 ```
+
+No `cp .env.example .env` step. Follow the wizard, then the server starts.
 
 **Already cloned - switch to / update the tag**
 
 ```bash
 cd cvly
 git fetch --tags
-git checkout vx.x.x'
+git checkout v1.0.6
 ./start.sh        # macOS / Linux
-# or: ./start.bat   # Windows
+# or: start.bat   # Windows
 ```
 
 Your browser should open at **http://localhost:8000**. If styles look broken, hard-refresh the page (`Cmd+Shift+R` / `Ctrl+Shift+R`).
@@ -484,21 +350,19 @@ Same as above, but stay on the branch you are working on (do not force a tag che
 ```bash
 git clone https://github.com/bilalr-dev/cvly.git
 cd cvly
-cp .env.example .env
-# Fill .env (section 5)
-./start.sh        # macOS / Linux
+./start.sh        # macOS / Linux - wizard on first run
 start.bat         # Windows
 ```
 
 `start.sh` / `start.bat` will:
 
-1. Check Python 3
+1. Check Python 3.10-3.12
 2. Create `.venv` if needed
 3. Install `requirements.txt`
-4. Refuse to start if `.env` is missing
+4. Launch the **setup wizard** if `.env` is missing
 5. Launch Uvicorn on port 8000
 
-Stop the app with `Ctrl+C`.
+Stop the app with `Ctrl+C`. If you see `Address already in use`, another Cvly instance is still running on port 8000 - stop it first.
 
 ---
 
@@ -541,15 +405,14 @@ git remote -v
 # upstream  https://github.com/bilalr-dev/cvly.git (fetch/push)
 ```
 
-**Step 4 : Install dependencies:**
+**Step 4 : Install dependencies and configure:**
 
 ```bash
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
-cp .env.example .env
-# Fill in your API keys (section 5)
+./start.sh        # launches the setup wizard if .env is missing
+# or: python3 setup.py
 ```
-
 **Step 5 : Create a branch from the latest main:**
 
 ```bash
@@ -669,7 +532,7 @@ docs/what-updated
 - [2. Techniques & recherches](#2-techniques--recherches)
 - [3. Stack](#3-stack-utilise)
 - [4. Structure](#4-structure-du-projet)
-- [5. Fichier `.env`](#5-configuration-du-fichier-env)
+- [5. Configuration (assistant de setup)](#5-configuration-assistant-de-setup)
 - [6. Lancer le projet](#6-comment-lancer-le-projet)
 - [7. Collaborer](#7-comment-collaborer-correctement)
 ---
@@ -685,7 +548,7 @@ Cvly est un **assistant de candidature local**. Vous importez votre CV, définis
 5. Vous laisse tout relire avant d’enregistrer
 6. Peut journaliser les candidatures validées dans une Google Sheet
 
-L’interface s’ouvre dans le navigateur sur `http://localhost:8000`. Aucun compte Cvly ni backend hébergé n’est requis. Le traitement IA utilise les clés d’API que vous fournissez dans `.env`.
+L’interface s’ouvre dans le navigateur sur `http://localhost:8000`. Aucun compte Cvly ni backend hébergé n’est requis. Au premier lancement, l’**assistant de configuration** vous guide pour les clés d’API (EN/FR) et écrit le fichier `.env` - vous n’avez pas besoin d’éditer la config à la main.
 
 **Principes**
 
@@ -878,10 +741,11 @@ cvly/
 ├── config/                         # Placer google_service_account.json ici
 ├── cache/                          # Préférences / profil locaux
 ├── output/                         # CV & lettres approuvés (.md)
-├── start.sh / start.bat
+├── setup.py                        # Assistant de configuration interactif (EN/FR)
+├── start.sh / start.bat            # Lancement en une commande (lance l'assistant si besoin)
 ├── requirements.txt
 ├── requirements-dev.txt
-└── .env.example
+└── .env.example                    # Référence seulement - l'assistant crée .env
 ```
 
 **Pages**
@@ -895,190 +759,58 @@ cvly/
 
 ---
 
-## 5. Configuration du fichier `.env`
+## 5. Configuration (assistant de setup)
 
-À faire une seule fois.
+**Important :** vous n’avez **pas** besoin de créer ni d’éditer `.env` à la main. Cvly inclut un assistant de configuration interactif (`setup.py`) - c’est la méthode recommandée pour tous les nouveaux utilisateurs.
 
-### Étape 0 - Créer le fichier
+### Recommandé - utiliser l’assistant de setup
+
+L’assistant :
+
+- Se lance automatiquement au premier `./start.sh` ou `start.bat` si `.env` est absent
+- Demande d’abord la langue (**EN** ou **FR**)
+- Ouvre chaque page d’inscription API dans le navigateur
+- Affiche des étapes clic par clic (créer la clé, copier, coller)
+- Permet de passer les services optionnels avec Entrée
+- Écrit un `.env` valide pour vous
+- Puis continue et démarre l’application
+
+**Premier lancement**
 
 ```bash
+git clone https://github.com/bilalr-dev/cvly.git
 cd cvly
-cp .env.example .env
+./start.sh        # macOS / Linux - l'assistant s'ouvre si .env est absent
+# ou : start.bat  # Windows
 ```
 
-Ouvrez `.env` avec un éditeur de texte. Laissez vides les clés optionnelles non utilisées.
-
----
-
-### Étape 1 - Google Gemini (OBLIGATOIRE)
-
-1. Ouvrez **https://aistudio.google.com/apikey**
-2. Connectez-vous avec Google
-3. Cliquez sur **Create API key**
-4. Collez la clé dans `.env` :
-
-```env
-GEMINI_API_KEY=collez_votre_cle_ici
-```
-
----
-
-### Étape 2 - Groq (recommandé - critique IA indépendante)
-
-1. Ouvrez **https://console.groq.com**
-2. Créez un compte / connectez-vous
-3. Allez sur **https://console.groq.com/keys**
-4. Créez une clé et collez-la :
-
-```env
-GROQ_API_KEY=collez_votre_cle_ici
-GROQ_MODEL=llama-3.1-8b-instant
-```
-
-Gardez `llama-3.1-8b-instant` sauf besoin particulier (les modèles plus gros consomment le quota gratuit plus vite).
-
----
-
-### Étape 3 - France Travail (recommandé pour le marché français)
-
-1. Créez un compte sur **https://francetravail.io**
-2. Page de l’API Offres d’emploi : **https://francetravail.io/data/api/offres-emploi**
-3. Cliquez sur **Utiliser l’API**
-4. Créez une application (ex. nom : `cvly`, URL : `https://example.com`)
-5. **Abonnez l'application aux APIs** : étape séparée de la création, ne pas oublier :
-   - Cliquez sur **« Ajouter une API »**
-   - Trouvez **« Offres d'emploi v2 »** → cliquez sur **« Ajouter »** (obligatoire)
-   - Descendez jusqu'à la section IA et trouvez **« ROMEO v2 »** → cliquez sur **« Ajouter »** (recommandé)
-
-   Après souscription, la page de votre application devrait afficher les deux sous **« APIs souscrites »** :
-   ```
-   Offres d'emploi v2    : 10 appels / seconde
-   ROMEO v2              : 3 appels / seconde
-   ```
-
-   > **Qu'est-ce que ROMEO v2 ?** Il permet à Cvly de mapper automatiquement n'importe quel intitulé de poste (juriste, ingénieur, comptable…) vers les codes ROME français. Cela améliore les résultats de La Bonne Alternance pour n'importe quel métier, pas uniquement l'informatique. Sans ROMEO, Cvly fonctionne toujours mais les résultats La Bonne Alternance peuvent être limités.
-
-6. Dans les paramètres de l'application, copiez :
-   - **Identifiant client** (commence par `PAR_...`) → `FRANCE_TRAVAIL_CLIENT_ID`
-   - **Clé secrète** → `FRANCE_TRAVAIL_CLIENT_SECRET`
-
-```env
-FRANCE_TRAVAIL_CLIENT_ID=PAR_...
-FRANCE_TRAVAIL_CLIENT_SECRET=...
-```
-
-Si vous voyez `invalid_client`, l’abonnement **Offres d’emploi v2** manque souvent.
-
----
-
-### Étape 4 - Adzuna (recommandé)
-
-1. Ouvrez **https://developer.adzuna.com/**
-2. Inscrivez-vous (type : **Personal or academic research**)
-3. Copiez App ID et App Key depuis le tableau de bord :
-
-```env
-ADZUNA_APP_ID=...
-ADZUNA_APP_KEY=...
-```
-
----
-
-### Étape 5 - Arbeitnow, Remotive, Jobicy (automatique)
-
-Aucune clé. Elles démarrent dès que Cvly tourne.
-
----
-
-### Étape 6 - JSearch / RapidAPI (optionnel)
-
-1. Ouvrez **https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch**
-2. Abonnez-vous au plan **BASIC** (0 € / mois)
-3. Copiez `X-RapidAPI-Key` :
-
-```env
-JSEARCH_API_KEY=...
-```
-
----
-
-### Étape 7 - La Bonne Alternance (recommandé pour alternance / stage)
-
-1. Ouvrez **https://api.apprentissage.beta.gouv.fr/fr/compte/profil**
-2. Inscrivez-vous avec votre e-mail (lien de connexion reçu par mail)
-3. Complétez le profil ; le portail crée un **jeton d’accès**
-4. Copiez le jeton :
-
-```env
-LA_BONNE_ALTERNANCE_API_KEY=...
-```
-
-Explorateur d’API : **https://api.apprentissage.beta.gouv.fr/fr/explorer/recherche-offre**  
-Cvly n’appelle cette API que si **alternance** ou **stage** est sélectionné dans Paramètres.
-
----
-
-### Étape 8 - Suivi Google Sheets (optionnel)
-
-**A. Compte de service**
-
-1. Ouvrez **https://console.cloud.google.com/apis/credentials**
-2. **+ CREATE CREDENTIALS** → **Service account** → nom ex. `cvly-sheets`
-3. Onglet **Keys** → **Add key** → **JSON** → téléchargez le fichier
-4. Déplacez-le dans le projet :
+**Relancer l’assistant plus tard** (changer des clés ou refaire la config) :
 
 ```bash
-mkdir -p config
-mv ~/Downloads/votre-fichier.json config/google_service_account.json
+python3 setup.py
+# ou supprimer .env puis relancer ./start.sh
 ```
 
-**B. Activer les APIs**
+Seul **Google Gemini** est obligatoire. Tout le reste peut être ignoré ; vous pourrez ajouter des clés plus tard en relançant l’assistant.
 
-1. Sheets : **https://console.cloud.google.com/apis/library/sheets.googleapis.com**
-2. Drive : **https://console.cloud.google.com/apis/library/drive.googleapis.com**
+### Ce que l’assistant configure
 
-**C. Créer et partager la feuille**
+| Service | Obligatoire ? | Notes |
+|---|---|---|
+| Gemini | Oui | IA principale |
+| Groq | Recommandé | Seconde IA qui vérifie la sortie de Gemini |
+| France Travail | Recommandé (France) | Inclut Offres d'emploi v2 + ROMEO v2 dans les étapes guidées |
+| Adzuna | Recommandé | Offres européennes |
+| Arbeitnow / Remotive / Jobicy | Automatique | Aucune clé |
+| JSearch | Optionnel | Couverture supplémentaire via RapidAPI |
+| La Bonne Alternance | Optionnel | Alternance / stage |
+| Google Sheets | Optionnel | Suivi des candidatures approuvées |
 
-1. Créez une Google Sheet (ex. `Cvly Job Tracker`)
-2. Partagez-la avec l’e-mail du compte de service (droits **Éditeur**) :
+### Édition manuelle de `.env` (optionnel - non requis)
 
-```bash
-grep client_email config/google_service_account.json
-```
+La configuration manuelle **n’est pas requise** pour un usage normal. Préférez l’assistant ci-dessus.
 
-3. Copiez l’ID de la feuille depuis l’URL  
-   (`https://docs.google.com/spreadsheets/d/CETTE_PARTIE/edit`) → `GOOGLE_SHEET_ID`
-
-```env
-GOOGLE_SERVICE_ACCOUNT_PATH=config/google_service_account.json
-GOOGLE_SHEET_ID=...
-```
-
----
-
-### Étape 9 - Réglages de l’app (déjà présents dans `.env.example`)
-
-```env
-APP_PORT=8000
-MATCH_THRESHOLD=50
-DEFAULT_LANGUAGE=fr
-DEFAULT_COUNTRY=FR
-```
-
----
-
-### Récapitulatif des clés
-
-| Service | Obligatoire ? | Quota gratuit (indicatif) | Temps |
-|---|---|---|---|
-| Gemini | Oui | ~15 req/min, ~1 500/jour | ~1 min |
-| Groq | Recommandé | ~30 req/min | ~2 min |
-| France Travail | Recommandé (FR) | ~1 000/jour | ~5 min |
-| Adzuna | Recommandé | ~250/jour | ~3 min |
-| Arbeitnow / Remotive / Jobicy | Automatique | - | 0 |
-| JSearch | Optionnel | ~200/mois | ~3 min |
-| La Bonne Alternance | Recommandé pour alternance/stage | Gratuit non commercial | ~3 min |
-| Google Sheets | Optionnel | - | ~10 min |
+Si vous tenez vraiment à éditer les fichiers vous-même : copiez `.env.example` vers `.env` et remplissez les clés. `.env.example` n’est qu’un modèle de référence ; `start.sh` / `start.bat` lanceront toujours l’assistant si `.env` est absent.
 
 ---
 
@@ -1086,19 +818,20 @@ DEFAULT_COUNTRY=FR
 
 ### Version production (recommandée pour la plupart des utilisateurs)
 
-Utilisez un **tag de release**, pas un commit au hasard. Dernier tag stable : **`v1.0.5`**.
+Utilisez un **tag de release**, pas un commit au hasard. Dernier tag stable : **`v1.0.6`**.
 
 Toutes les releases : [github.com/bilalr-dev/cvly/releases](https://github.com/bilalr-dev/cvly/releases)  
 Liste des tags : [github.com/bilalr-dev/cvly/tags](https://github.com/bilalr-dev/cvly/tags)
 
 | Tag | Contenu |
 |---|---|
-| `v1.0.5` | ROMEO v2 docs, fork contributor guide, CDN CORS fix (view page) - **use this** |
-| `v1.0.4` | Auto-install Python 3.12 in start scripts |
-| `v1.0.5` | README Markdown / anchor / badge fixes |
-| `v1.0.2` | Docs + run guide with tags |
-| `v1.0.1` | Tailwind CDN CORS fix |
-| `v1.0.0` | First production release |
+| `v1.0.6` | interactive setup wizard |
+| `v1.0.5` | Docs ROMEO v2, guide contributeur fork, fix CORS CDN (page view) - **à utiliser** |
+| `v1.0.4` | Auto-install Python 3.12 dans les scripts de démarrage |
+| `v1.0.3` | Correctifs Markdown / ancres / badges du README |
+| `v1.0.2` | Docs + guide de lancement avec tags |
+| `v1.0.1` | Fix CORS Tailwind CDN |
+| `v1.0.0` | Première release production |
 
 **Nouvelle installation**
 
@@ -1106,19 +839,19 @@ Liste des tags : [github.com/bilalr-dev/cvly/tags](https://github.com/bilalr-dev
 git clone https://github.com/bilalr-dev/cvly.git
 cd cvly
 git fetch --tags
-git checkout v1.0.5
-cp .env.example .env
-# Remplir le .env (section 5)
-./start.sh        # macOS / Linux
+git checkout v1.0.6
+./start.sh        # macOS / Linux - lance l'assistant si .env est absent
 # ou : start.bat  # Windows
 ```
+
+Pas d’étape `cp .env.example .env`. Suivez l’assistant, puis le serveur démarre.
 
 **Déjà cloné - passer au / mettre à jour le tag**
 
 ```bash
 cd cvly
 git fetch --tags
-git checkout v1.0.5
+git checkout v1.0.6
 ./start.sh        # macOS / Linux
 # ou : start.bat  # Windows
 ```
@@ -1132,21 +865,19 @@ Même procédure, sans forcer un checkout de tag :
 ```bash
 git clone https://github.com/bilalr-dev/cvly.git
 cd cvly
-cp .env.example .env
-# Remplir le .env (section 5)
-./start.sh        # macOS / Linux
+./start.sh        # macOS / Linux - assistant au premier lancement
 start.bat         # Windows
 ```
 
 `start.sh` / `start.bat` :
 
-1. Vérifient Python 3
+1. Vérifient Python 3.10-3.12
 2. Créent `.venv` si besoin
 3. Installent `requirements.txt`
-4. Refusent de démarrer sans `.env`
+4. Lancent l’**assistant de setup** si `.env` est absent
 5. Lancent Uvicorn sur le port 8000
 
-Arrêt : `Ctrl+C`.
+Arrêt : `Ctrl+C`. Si vous voyez `Address already in use`, une autre instance Cvly tourne encore sur le port 8000 - arrêtez-la d’abord.
 
 ---
 
@@ -1189,13 +920,13 @@ git remote -v
 # upstream  https://github.com/bilalr-dev/cvly.git (fetch/push)
 ```
 
-**Étape 4 : Installer les dépendances :**
+**Étape 4 : Installer les dépendances et configurer :**
 
 ```bash
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
-cp .env.example .env
-# Remplissez vos clés API (section 5)
+./start.sh        # lance l'assistant de setup si .env est absent
+# ou : python3 setup.py
 ```
 
 **Étape 5 : Créer une branche depuis le dernier main :**

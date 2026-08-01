@@ -228,3 +228,22 @@ async def post_save_preferences(request: Request) -> Any:
         content=f'<div class="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-800">✓ {t.get("prefs_saved", "Preferences saved")}</div>',
         status_code=200,
     )
+
+
+@router.get("/api-status")
+async def api_status(request: Request) -> dict:
+    """Return connectivity status for all APIs."""
+    from backend.utils.health import check_all_apis
+
+    statuses = await check_all_apis()
+    return {
+        "apis": [
+            {
+                "name": s.name,
+                "configured": s.configured,
+                "connected": s.connected,
+                "error": s.error,
+            }
+            for s in statuses
+        ]
+    }
