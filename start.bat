@@ -1,20 +1,55 @@
 @echo off
+setlocal enabledelayedexpansion
 echo.
 echo   =======================================
 echo             Cvly - Job Agent
 echo   =======================================
 echo.
 
-where python >nul 2>nul
-if %ERRORLEVEL% neq 0 (
-    echo Python 3 is required. Install it from https://www.python.org/downloads/
-    pause
-    exit /b 1
+rem Cvly needs Python 3.10-3.12 - newer versions may not have prebuilt
+rem wheels yet for some dependencies (e.g. pydantic-core), which forces a
+rem source build that fails without a full Rust/MSVC toolchain.
+set "PYCMD="
+
+for %%V in (3.12 3.11 3.10) do (
+    if not defined PYCMD (
+        py -%%V --version >nul 2>nul
+        if not errorlevel 1 set "PYCMD=py -%%V"
+    )
 )
+
+if not defined PYCMD (
+    for /f "tokens=2 delims= " %%v in ('python --version 2^>^&1') do set "PYVER=%%v"
+    for %%v in (3.10 3.11 3.12) do (
+        echo !PYVER! | findstr /b "%%v." >nul
+        if not errorlevel 1 set "PYCMD=python"
+    )
+)
+
+if not defined PYCMD (
+    echo No compatible Python (3.10-3.12^) found. Attempting to install Python 3.12...
+    where winget >nul 2>nul
+    if errorlevel 1 (
+        echo winget is not available on this system.
+        echo Please install Python 3.10-3.12 manually from https://www.python.org/downloads/
+        pause
+        exit /b 1
+    )
+    winget install --id Python.Python.3.12 -e --source winget --accept-package-agreements --accept-source-agreements
+    if errorlevel 1 (
+        echo Automatic Python install failed.
+        echo Please install Python 3.10-3.12 manually from https://www.python.org/downloads/
+        pause
+        exit /b 1
+    )
+    set "PYCMD=py -3.12"
+)
+
+echo Using: !PYCMD!
 
 if not exist ".venv" (
     echo Creating virtual environment...
-    python -m venv .venv
+    !PYCMD! -m venv .venv
 )
 
 call .venv\Scripts\activate.bat
