@@ -1,24 +1,26 @@
 # Cvly
 
-**Language / Langue:** [English](#english) · [Français](#français)
+[![Python](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)](https://www.python.org/) [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/) [![Gemini](https://img.shields.io/badge/AI-Gemini-4285F4?logo=google)](https://ai.google.dev/) [![Groq](https://img.shields.io/badge/AI-Groq-black)](https://groq.com/) [![HTMX](https://img.shields.io/badge/HTMX-2.x-3366CC?logo=htmx&logoColor=white)](https://htmx.org/) [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v3-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](#license) [![GitHub Release](https://img.shields.io/github/v/release/bilalr-dev/cvly)](https://github.com/bilalr-dev/cvly/releases) [![GitHub Stars](https://img.shields.io/github/stars/bilalr-dev/cvly)](https://github.com/bilalr-dev/cvly/stargazers)
+
+**Language / Langue:** [English](#english) · [Français](#french)
 
 AI-powered job application helper that runs on your computer.  
 Assistant de candidature alimenté par l’IA, qui tourne sur votre ordinateur.
 
 ---
 
-<a id="english"></a>
-
 # English
 
-**Index:** 
-[1. Project context](#1-project-context) 
-[2. Techniques & research](#2-techniques--research)
-[3. Stack](#3-stack)
-[4. Project structure](#4-project-structure)
-[5. Environment setup](#5-environment-setup-env-file)
-[6. How to run](#6-how-to-run)
-[7. How to collaborate](#7-how-to-collaborate)
+**Index:**
+
+- [1. Project context](#1-project-context)
+- [2. Techniques & research](#2-techniques--research)
+- [3. Stack](#3-stack)
+- [4. Project structure](#4-project-structure)
+- [5. Environment setup](#5-environment-setup-env-file)
+- [6. How to run](#6-how-to-run)
+- [7. How to collaborate](#7-how-to-collaborate)
+- [Français](#french)
 
 ---
 
@@ -33,7 +35,7 @@ Cvly is a **local job-application agent**. You upload your résumé, set your se
 5. Lets you review everything before saving
 6. Optionally logs approved applications in a Google Sheet
 
-It opens in your browser at `http://localhost:8000`. No cloud account for Cvly itself - only free API keys you put in a `.env` file.
+It opens in your browser at `http://localhost:8000`. No Cvly account or hosted backend is required. AI processing uses the API keys you provide in `.env`.
 
 **Design principles**
 
@@ -426,14 +428,15 @@ Change these only if you know why.
 
 ### Production release (recommended for most users)
 
-Use a **tagged release**, not a random commit. Latest stable tag: **`v1.0.2`**.
+Use a **tagged release**, not a random commit. Latest stable tag: **`v1.0.3`**.
 
 All tags and release notes: [github.com/bilalr-dev/cvly/releases](https://github.com/bilalr-dev/cvly/releases)  
 All tags list: [github.com/bilalr-dev/cvly/tags](https://github.com/bilalr-dev/cvly/tags)
 
 | Tag | What it is |
 |---|---|
-| `v1.0.2` | Latest stable (docs + run guide with tags) - **use this** |
+| `v1.0.3` | Latest stable (README Markdown / anchor / badge fixes) - **use this** |
+| `v1.0.2` | Docs + run guide with tags |
 | `v1.0.1` | Tailwind CDN CORS fix |
 | `v1.0.0` | First production release |
 
@@ -443,7 +446,7 @@ All tags list: [github.com/bilalr-dev/cvly/tags](https://github.com/bilalr-dev/c
 git clone https://github.com/bilalr-dev/cvly.git
 cd cvly
 git fetch --tags
-git checkout v1.0.2
+git checkout v1.0.3
 cp .env.example .env
 # Fill .env (section 5)
 ./start.sh        # macOS / Linux
@@ -455,7 +458,7 @@ cp .env.example .env
 ```bash
 cd cvly
 git fetch --tags
-git checkout v1.0.2
+git checkout v1.0.3
 ./start.sh        # macOS / Linux
 # or: start.bat   # Windows
 ```
@@ -528,22 +531,24 @@ refactor/what-changed
 
 ### License
 
-MIT
+This project is licensed under the MIT License.
 
 ---
 
-<a id="français"></a>
+<a id="french"></a>
 
-# Français
+# Francais
 
-**Aller à :** 
-[1. Contexte](#1-contexte-du-projet)
-[2. Techniques & recherches](#2-techniques--recherches)
-[3. Stack](#3-stack-utilisé)
-[4. Structure](#4-structure-du-projet)
-[5. Fichier .env](#5-configuration-du-fichier-env)
-[6. Lancer le projet](#6-comment-lancer-le-projet)
-[7. Collaborer](#7-comment-collaborer-correctement)
+**Index :**
+
+- [1. Contexte](#1-contexte-du-projet)
+- [2. Techniques & recherches](#2-techniques--recherches)
+- [3. Stack](#3-stack-utilise)
+- [4. Structure](#4-structure-du-projet)
+- [5. Fichier `.env`](#5-configuration-du-fichier-env)
+- [6. Lancer le projet](#6-comment-lancer-le-projet)
+- [7. Collaborer](#7-comment-collaborer-correctement)
+- [English](#english)
 
 ---
 
@@ -558,7 +563,7 @@ Cvly est un **assistant de candidature local**. Vous importez votre CV, définis
 5. Vous laisse tout relire avant d’enregistrer
 6. Peut journaliser les candidatures validées dans une Google Sheet
 
-L’interface s’ouvre dans le navigateur sur `http://localhost:8000`. Cvly n’a pas de compte cloud propre - seulement des clés d’API gratuites dans un fichier `.env`.
+L’interface s’ouvre dans le navigateur sur `http://localhost:8000`. Aucun compte Cvly ni backend hébergé n’est requis. Le traitement IA utilise les clés d’API que vous fournissez dans `.env`.
 
 **Principes**
 
@@ -648,7 +653,7 @@ France Travail utilise les codes commune INSEE. La Bonne Alternance n’est appe
 
 ---
 
-## 3. Stack utilisé
+## 3. Stack utilise
 
 | Élément | Version / choix | Rôle |
 |---|---|---|
@@ -947,14 +952,15 @@ DEFAULT_COUNTRY=FR
 
 ### Version production (recommandée pour la plupart des utilisateurs)
 
-Utilisez un **tag de release**, pas un commit au hasard. Dernier tag stable : **`v1.0.2`**.
+Utilisez un **tag de release**, pas un commit au hasard. Dernier tag stable : **`v1.0.3`**.
 
 Toutes les releases : [github.com/bilalr-dev/cvly/releases](https://github.com/bilalr-dev/cvly/releases)  
 Liste des tags : [github.com/bilalr-dev/cvly/tags](https://github.com/bilalr-dev/cvly/tags)
 
 | Tag | Contenu |
 |---|---|
-| `v1.0.2` | Dernière version stable (docs + guide de lancement) - **à utiliser** |
+| `v1.0.3` | Dernière version stable (corrections Markdown / ancres / badges) - **à utiliser** |
+| `v1.0.2` | Docs + guide de lancement avec tags |
 | `v1.0.1` | Correctif CORS CDN Tailwind |
 | `v1.0.0` | Première release production |
 
@@ -964,7 +970,7 @@ Liste des tags : [github.com/bilalr-dev/cvly/tags](https://github.com/bilalr-dev
 git clone https://github.com/bilalr-dev/cvly.git
 cd cvly
 git fetch --tags
-git checkout v1.0.2
+git checkout v1.0.3
 cp .env.example .env
 # Remplir le .env (section 5)
 ./start.sh        # macOS / Linux
@@ -976,7 +982,7 @@ cp .env.example .env
 ```bash
 cd cvly
 git fetch --tags
-git checkout v1.0.2
+git checkout v1.0.3
 ./start.sh        # macOS / Linux
 # ou : start.bat  # Windows
 ```
@@ -1061,4 +1067,4 @@ refactor/ce-qui-change
 
 ### Licence
 
-MIT
+This project is licensed under the MIT License.
