@@ -13,6 +13,7 @@ from typing import Any
 import aiohttp
 
 from backend.models.job import RawJobPosting
+from backend.utils.constants import DEFAULT_JOB_SEARCH_TERM
 from backend.utils.dedup import generate_posting_id
 from backend.utils.location_filter import filter_by_location
 
@@ -29,7 +30,11 @@ class ArbeitnowClient:
 
     async def search(self, preferences: Any) -> list[RawJobPosting]:
         """Search Arbeitnow for jobs matching preferences."""
-        search_term = " ".join(preferences.titles) if getattr(preferences, "titles", None) else "developer"
+        search_term = (
+            " ".join(preferences.titles)
+            if getattr(preferences, "titles", None)
+            else DEFAULT_JOB_SEARCH_TERM
+        )
         location = preferences.location.split(",")[0].strip() if getattr(preferences, "location", None) else ""
 
         # Note: Arbeitnow API does not support radius filtering.

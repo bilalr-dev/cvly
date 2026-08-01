@@ -9,6 +9,7 @@ from starlette.requests import Request
 
 from backend.config import get_settings
 from backend.state import app_state, get_translations, templates
+from backend.utils.constants import GOOGLE_SHEETS_EDIT_URL
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +51,7 @@ async def get_dashboard(request: Request) -> HTMLResponse:
     logger.debug("Dashboard accessed. Showing %d jobs.", jobs_count)
     settings = get_settings()
     sheet_url = (
-        f"https://docs.google.com/spreadsheets/d/{settings.google_sheet_id}/edit"
+        GOOGLE_SHEETS_EDIT_URL.format(sheet_id=settings.google_sheet_id)
         if settings.google_sheet_id
         else None
     )

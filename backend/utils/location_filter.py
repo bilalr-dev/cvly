@@ -28,11 +28,9 @@ def filter_by_location(
         return postings
 
     location_lower = user_location.lower()
-    filtered: list[RawJobPosting] = []
-    for posting in postings:
-        loc_lower = posting.location.lower()
-        if location_lower in loc_lower or (
-            remote_ok and any(kw in loc_lower for kw in remote_keywords)
-        ):
-            filtered.append(posting)
-    return filtered
+    return [
+        posting
+        for posting in postings
+        if location_lower in posting.location.lower()
+        or (remote_ok and any(kw in posting.location.lower() for kw in remote_keywords))
+    ]

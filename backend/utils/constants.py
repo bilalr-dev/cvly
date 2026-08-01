@@ -20,17 +20,14 @@ LANGUAGE_DISPLAY_NAMES: dict[str, str] = {
     "en": "English",
 }
 
+
+def get_language_display_name(language: str) -> str:
+    """Map language code to display name for LLM prompts."""
+    return LANGUAGE_DISPLAY_NAMES.get(language, LANGUAGE_DISPLAY_NAMES["en"])
+
+
 # HTTP
 HTTP_OK: int = 200
-
-# Minimum character length for a bullet point to be considered valid
-MIN_BULLET_LENGTH: int = 25
-
-# Upper bound on bullet points rendered per experience role in output_generator
-MAX_BULLETS_PER_ROLE: int = 4
-
-# Sentinel used to remove the roles cap (no upper limit)
-MAX_ROLES_LIMIT: int = 999
 
 # Groq service defaults (free tier ~30 RPM)
 GROQ_MAX_TOKENS: int = 2000
@@ -39,9 +36,23 @@ GROQ_RATE_LIMIT_CALLS: int = 28
 GROQ_RATE_LIMIT_PERIOD_SECONDS: float = 60.0
 GROQ_ERROR_BODY_CHARS: int = 200
 
+# Self-corrector: reject truncated cover-letter corrections
+MIN_CORRECTED_COVER_LENGTH: int = 100
+
 # Job API client defaults
 JOB_API_TIMEOUT_SECONDS: int = 15
 JOBICY_DEFAULT_COUNT: str = "50"
+JOBICY_BASE_URL: str = "https://jobicy.com/api/v2/remote-jobs"
+JOBICY_JOB_PAGE_URL: str = "https://jobicy.com/jobs/{slug}"
+DEFAULT_JOB_SEARCH_TERM: str = "developer"
+TITLE_DESC_PREVIEW_CHARS: int = 200
+
+# Google Sheets / Drive
+GOOGLE_SHEETS_SCOPES: tuple[str, ...] = (
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive.file",
+)
+GOOGLE_SHEETS_EDIT_URL: str = "https://docs.google.com/spreadsheets/d/{sheet_id}/edit"
 
 # Country-to-region mapping (Jobicy + future geo-aware APIs)
 COUNTRY_GEO_MAP: dict[str, str] = {

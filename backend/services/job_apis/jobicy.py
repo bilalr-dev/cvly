@@ -15,23 +15,24 @@ import aiohttp
 from backend.models.job import RawJobPosting
 from backend.utils.constants import (
     COUNTRY_GEO_MAP,
+    DEFAULT_JOB_SEARCH_TERM,
     HTTP_OK,
     JOB_API_TIMEOUT_SECONDS,
+    JOBICY_BASE_URL,
     JOBICY_DEFAULT_COUNT,
+    JOBICY_JOB_PAGE_URL,
 )
 from backend.utils.dedup import generate_posting_id
 from backend.utils.location_filter import filter_by_location
 
 logger = logging.getLogger(__name__)
 
-_BASE_URL = "https://jobicy.com/api/v2/remote-jobs"
-
 
 def _build_search_params(preferences: Any) -> dict[str, str]:
     search_term = (
         " ".join(preferences.titles)
         if getattr(preferences, "titles", None)
-        else "developer"
+        else DEFAULT_JOB_SEARCH_TERM
     )
     country = getattr(preferences, "country", "FR").upper()
     return {
@@ -52,7 +53,7 @@ def _parse_jobicy_item(item: dict[str, Any]) -> RawJobPosting | None:
         if url and "/jobs/" not in url:
             job_slug = item.get("jobSlug") or item.get("id")
             if job_slug:
-                url = f"https://jobicy.com/jobs/{job_slug}"
+                url = JOBICY_JOB_PAGE_URL.format(slug=job_slug)
 
         return RawJobPosting(
             id=generate_posting_id(title, company, loc),
@@ -82,7 +83,7 @@ class JobicyClient:
         try:
             # Nested (not combined) async with - avoids aiohttp SSL cleanup races
             async with aiohttp.ClientSession(timeout=timeout) as session:  # noqa: SIM117
-                async with session.get(_BASE_URL, params=params) as response:
+                async with session.get(JOBICY_BASE_URL, params=params) as response:
                     if response.status != HTTP_OK:
                         logger.debug("Jobicy HTTP %d", response.status)
                         return []
