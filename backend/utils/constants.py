@@ -36,6 +36,7 @@ def get_language_display_name(language: str) -> str:
 
 # HTTP
 HTTP_OK: int = 200
+JOB_NOT_FOUND_DETAIL: str = "Job not found"
 
 # Groq service defaults (free tier ~30 RPM)
 GROQ_MAX_TOKENS: int = 2000
@@ -52,7 +53,6 @@ JOB_API_TIMEOUT_SECONDS: int = 15
 JOBICY_DEFAULT_COUNT: str = "50"
 JOBICY_BASE_URL: str = "https://jobicy.com/api/v2/remote-jobs"
 JOBICY_JOB_PAGE_URL: str = "https://jobicy.com/jobs/{slug}"
-DEFAULT_JOB_SEARCH_TERM: str = "developer"
 TITLE_DESC_PREVIEW_CHARS: int = 200
 
 # Google Sheets / Drive
@@ -431,6 +431,7 @@ TRANSLATIONS = {
         "prefs_saved": "Préférences enregistrées",
         "error_no_resume": "Veuillez d'abord importer un CV.",
         "error_no_prefs": "Veuillez d'abord enregistrer vos préférences.",
+        "error_no_preferences": "Veuillez configurer vos préférences de recherche (titres et localisation)",
         "step_prefix": "Étape",
         "step_parsing": "Analyse du CV...",
         "step_discovering": "Recherche d'offres...",
@@ -569,6 +570,7 @@ TRANSLATIONS = {
         "prefs_saved": "Preferences saved",
         "error_no_resume": "Please upload a resume first.",
         "error_no_prefs": "Please save your preferences first.",
+        "error_no_preferences": "Please configure your search preferences (titles and location)",
         "step_prefix": "Step",
         "step_parsing": "Parsing resume...",
         "step_discovering": "Discovering jobs...",

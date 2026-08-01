@@ -8,6 +8,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 from gspread.utils import rowcol_to_a1
 
+from backend.config import get_settings
 from backend.models import MatchResult, ParsedJobDescription, RawJobPosting
 from backend.utils.constants import (
     GOOGLE_SHEETS_SCOPES,
@@ -43,7 +44,8 @@ class SheetsTracker:
         self.worksheet = spreadsheet.get_worksheet(0)
         logger.debug("Connected to Google Sheet: %s", self.sheet_id)
 
-    def setup_headers(self, language: str = "fr") -> None:
+    def setup_headers(self, language: str | None = None) -> None:
+        language = language or get_settings().default_language
         if self.worksheet is None:
             raise RuntimeError(SHEETS_NOT_CONNECTED_MSG)
 
@@ -96,8 +98,9 @@ class SheetsTracker:
             ]
         })
 
-    def _ensure_headers(self, language: str = "fr") -> None:
+    def _ensure_headers(self, language: str | None = None) -> None:
         """Write column headers once if the sheet is still empty."""
+        language = language or get_settings().default_language
         if self.worksheet is None:
             raise RuntimeError(SHEETS_NOT_CONNECTED_MSG)
         if not self.worksheet.acell("A1").value:
@@ -111,8 +114,9 @@ class SheetsTracker:
         match_result: MatchResult,
         resume_path: str,
         cover_letter_path: str,
-        language: str = "fr"
+        language: str | None = None
     ) -> None:
+        language = language or get_settings().default_language
         if self.worksheet is None:
             raise RuntimeError(SHEETS_NOT_CONNECTED_MSG)
 

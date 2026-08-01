@@ -76,6 +76,9 @@ class FranceTravailClient(BaseJobAPIClient):
         )
 
     async def search(self, preferences: SearchPreferences) -> list[RawJobPosting]:
+        if not getattr(preferences, "titles", None):
+            return []
+
         if not self.access_token:
             await self.authenticate()
 
@@ -86,8 +89,7 @@ class FranceTravailClient(BaseJobAPIClient):
                 params: dict[str, str] = {}
 
                 # Keywords = just the job titles
-                if getattr(preferences, "titles", None):
-                    params["motsCles"] = " ".join(preferences.titles)
+                params["motsCles"] = " ".join(preferences.titles)
 
                 # Location = INSEE code (required for distance to work)
                 if getattr(preferences, "location", None):

@@ -16,6 +16,7 @@ from backend.models import TailoredOutput
 from backend.models.tailoring import KeywordAnalysisResult
 from backend.prompts import BULLET_REWRITE_PROMPT, KEYWORD_ANALYSIS_PROMPT
 from backend.services.gemini_llm import GeminiLLMService
+from backend.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -70,9 +71,12 @@ async def rewrite_bullets(
     jd: Any,
     match_result: Any,
     gemini_service: GeminiLLMService,
-    language: str = "fr",
-    country: str = "FR"
+    language: str | None = None,
+    country: str | None = None
 ) -> TailoredOutput:
+    settings = get_settings()
+    language = language or settings.default_language
+    country = country or settings.default_country
     orig_bullets = []
     exps = getattr(resume, "experience", [])
     if isinstance(exps, list):

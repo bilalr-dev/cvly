@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse
 from starlette.requests import Request
 
+from backend.config import get_settings
 from backend.state import app_state, get_translations, templates
 
 logger = logging.getLogger(__name__)
@@ -107,7 +108,7 @@ async def get_results(request: Request) -> HTMLResponse:
         "pipeline_run": len(postings) > 0,
         "jobs": jobs_display,
         "last_approved": last_approved,
-        "language": app_state.get("language", "fr"),
+        "language": app_state.get("language") or get_settings().default_language,
         "t": t,
         "active_page": "results",
         "approved_jobs": app_state.get("approved_jobs", set())
@@ -132,7 +133,7 @@ async def get_job_partial(request: Request, job_id: str) -> HTMLResponse:
     return templates.TemplateResponse(request=request, name="partials/job_detail.html", context={
         "request": request,
         "job": job,
-        "language": app_state.get("language", "fr"),
+        "language": app_state.get("language") or get_settings().default_language,
         "t": get_translations(),
         "approved_jobs": app_state.get("approved_jobs", set())
     })

@@ -39,6 +39,10 @@ class GoogleCSEClient(BaseJobAPIClient):
         )
 
     async def search(self, preferences: SearchPreferences) -> list[RawJobPosting]:
+        titles = getattr(preferences, "titles", None) or []
+        if not titles:
+            return []
+
         try:
             async with aiohttp.ClientSession() as session:
                 params = {
@@ -46,7 +50,7 @@ class GoogleCSEClient(BaseJobAPIClient):
                     "cx": self.cse_id
                 }
 
-                query = " ".join(preferences.titles) if getattr(preferences, "titles", None) else "Developer"
+                query = " ".join(titles)
                 if getattr(preferences, "location", None):
                     query += f" {preferences.location}"
                 params["q"] = query.strip()

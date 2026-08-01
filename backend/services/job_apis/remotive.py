@@ -13,7 +13,6 @@ from typing import Any
 import aiohttp
 
 from backend.models.job import RawJobPosting
-from backend.utils.constants import DEFAULT_JOB_SEARCH_TERM
 from backend.utils.dedup import generate_posting_id
 from backend.utils.location_filter import filter_by_location
 
@@ -30,11 +29,11 @@ class RemotiveClient:
 
     async def search(self, preferences: Any) -> list[RawJobPosting]:
         """Search Remotive for remote jobs matching preferences."""
-        search_term = (
-            " ".join(preferences.titles)
-            if getattr(preferences, "titles", None)
-            else DEFAULT_JOB_SEARCH_TERM
-        )
+        titles = getattr(preferences, "titles", None) or []
+        if not titles:
+            return []
+
+        search_term = " ".join(titles)
 
         # Note: Remotive API does not support radius filtering.
         params: dict[str, str] = {

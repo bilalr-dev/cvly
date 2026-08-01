@@ -53,7 +53,7 @@ def _build_resume_summary(profile: Any) -> dict:
         "student_alternance": "Student / Alternance",
     }
 
-    lang = app_state.get("language", "fr")
+    lang = app_state.get("language") or get_app_settings().default_language
     labels = profile_labels_fr if lang == "fr" else profile_labels_en
 
     skills_count = (
@@ -91,7 +91,7 @@ async def get_settings(request: Request) -> HTMLResponse:
         "resume_profile": profile,
         "resume_summary": resume_summary,
         "preferences": app_state.get("preferences"),
-        "language": app_state.get("language", "fr"),
+        "language": app_state.get("language") or get_app_settings().default_language,
         "t": get_translations(),
         "active_page": "settings",
     })
@@ -186,24 +186,28 @@ async def post_save_preferences(request: Request) -> Any:
         data = await request.json()
     else:
         form = await request.form()
-        titles_raw = form.get("titles", "")
+        titles_raw = form.get("titles") or ""
         titles = [t.strip() for t in titles_raw.split(",") if t.strip()] if titles_raw else []
 
-        raw_radius = form.get("radius_km", "30")
-        try:
-            parsed_radius = max(0.0, float(str(raw_radius).replace(",", ".")))
-        except ValueError:
-            parsed_radius = 30.0
+        raw_radius = form.get("radius_km")
+        if raw_radius is None or str(raw_radius).strip() == "":
+            parsed_radius = 0.0
+        else:
+            try:
+                parsed_radius = max(0.0, float(str(raw_radius).replace(",", ".")))
+            except ValueError:
+                parsed_radius = 0.0
 
+        settings = get_app_settings()
         data = {
             "titles": titles,
-            "location": form.get("location", ""),
+            "location": form.get("location") or "",
             "radius_km": parsed_radius,
             "remote_ok": form.get("remote_ok") == "on",
             "seniority": form.getlist("seniority"),
             "contract": form.getlist("contract"),
-            "exclude_keywords": form.get("exclude_keywords", ""),
-            "language": form.get("language", "fr"),
+            "exclude_keywords": form.get("exclude_keywords") or "",
+            "language": form.get("language") or settings.default_language,
         }
 
     if "titles" not in data or not data["titles"]:

@@ -7,6 +7,7 @@ from typing import Any
 
 import markdown as md_lib
 
+from backend.config import get_settings
 from backend.utils.constants import (
     ACADEMIC_KEYWORDS as _ACADEMIC_KEYWORDS,
 )
@@ -300,8 +301,9 @@ def _render_associations(md: list, resume: Any, _language: str, lang_map: dict) 
         md.append(line)
 
 
-def generate_resume_markdown_raw(resume: Any, tailored: Any, jd: Any, language: str = "fr") -> str:
+def generate_resume_markdown_raw(resume: Any, tailored: Any, jd: Any, language: str | None = None) -> str:
     """Generate full tailored resume as raw markdown string."""
+    language = language or get_settings().default_language
     md: list[str] = []
     lang_map = _SECTION_HEADINGS.get(language, _SECTION_HEADINGS["fr"])
     ext = is_one_page_exception(resume, jd)
@@ -323,8 +325,9 @@ def generate_resume_markdown_raw(resume: Any, tailored: Any, jd: Any, language: 
 
     return "\n".join(md)
 
-def generate_resume_markdown(resume: Any, tailored: Any, jd: Any, language: str = "fr") -> str:
+def generate_resume_markdown(resume: Any, tailored: Any, jd: Any, language: str | None = None) -> str:
     """Generate full tailored resume as HTML rendered from markdown."""
+    language = language or get_settings().default_language
     raw_md = generate_resume_markdown_raw(resume, tailored, jd, language)
     return md_lib.markdown(raw_md, extensions=["nl2br", "tables"])
 

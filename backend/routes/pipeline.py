@@ -76,36 +76,39 @@ def _build_api_clients(settings: AppSettings) -> list[Any]:
     logger.debug("Remotive client configured")
 
     api_clients.append(JobicyClient())
-    logger.debug("Jobicy client configured (free, no key)")
+    logger.debug("Jobicy client configured")
 
     return api_clients
 
 
 def _parse_preferences(prefs_data: dict) -> tuple[SearchPreferences, list[str], str]:
     """Parse user preferences dict into a SearchPreferences object and return routing keys."""
+    settings = get_settings()
+
     titles = prefs_data.get("titles")
     if isinstance(titles, str):
         titles = [t.strip() for t in titles.split(",") if t.strip()]
-    for_titles = titles if titles else ["Developer"]
+    for_titles = list(titles) if titles else []
 
-    location = prefs_data.get("location", "Paris")
-    if not location:
-        location = "Paris"
+    location = (prefs_data.get("location") or "").strip()
 
-    raw_radius = prefs_data.get("radius_km", 30.0)
-    try:
-        radius_km = int(float(str(raw_radius).replace(",", ".")))
-    except (ValueError, TypeError):
-        radius_km = 30
+    raw_radius = prefs_data.get("radius_km")
+    if raw_radius is None or raw_radius == "":
+        radius_km = 0  # no radius filter
+    else:
+        try:
+            radius_km = max(0, int(float(str(raw_radius).replace(",", "."))))
+        except (ValueError, TypeError):
+            radius_km = 0
 
-    seniorities = prefs_data.get("seniority", [])
-    seniority = "junior"
-    if seniorities and isinstance(seniorities, list):
+    seniorities = prefs_data.get("seniority") or []
+    seniority = None
+    if isinstance(seniorities, list):
         valid = [s.lower() for s in seniorities if str(s).lower() in SENIORITY_KEYWORDS]
-        seniority = valid[0] if valid else "junior"
+        seniority = valid[0] if valid else None
 
     exclude = prefs_data.get("exclude_keywords")
-    exclude_list = []
+    exclude_list: list[str] = []
     if isinstance(exclude, str):
         exclude_list = [k.strip() for k in exclude.split(",") if k.strip()]
     elif isinstance(exclude, list):
@@ -115,19 +118,19 @@ def _parse_preferences(prefs_data: dict) -> tuple[SearchPreferences, list[str], 
         titles=for_titles,
         location=location,
         radius_km=radius_km,
-        remote_ok=prefs_data.get("remote_ok", False),
+        remote_ok=bool(prefs_data.get("remote_ok")),
         seniority=seniority,
         exclude_keywords=exclude_list,
         max_results_per_source=20,
-        language=prefs_data.get("language", "fr"),
-        country="FR",
+        language=prefs_data.get("language") or settings.default_language,
+        country=prefs_data.get("country") or settings.default_country,
     )
     return preferences, for_titles, location
 
 
 def _filter_by_seniority(postings: list, prefs_data: dict) -> list:
     """Filter postings based on excluded seniority levels."""
-    selected_seniority = {s.lower() for s in prefs_data.get("seniority", [])}
+    selected_seniority = {s.lower() for s in (prefs_data.get("seniority") or [])}
     if not selected_seniority:
         return postings
 
@@ -200,9 +203,10 @@ def _filter_by_contract(postings: list, selected_contracts: list) -> list:
             _contract_type_from_string(contract_str)
             or _detect_contract_from_title(title_lower)
         )
-        if effective_type and effective_type in selected_lower:
-            filtered.append(p)
-        elif not effective_type:
+        if effective_type:
+            if effective_type in selected_lower:
+                filtered.append(p)
+        else:
             # Unknown type: benefit of the doubt, keep it
             filtered.append(p)
 
@@ -264,7 +268,7 @@ def _filter_postings(
     """Apply all post-discovery filters in sequence."""
     postings = _filter_by_seniority(postings, prefs_data)
     postings = _reclassify_contracts(postings)
-    postings = _filter_by_contract(postings, prefs_data.get("contract", []))
+    postings = _filter_by_contract(postings, prefs_data.get("contract") or [])
     postings = _filter_by_title_relevance(postings, for_titles)
 
     if len(postings) > max_parse:
@@ -393,7 +397,24 @@ async def execute_pipeline() -> None:
 
         # Stage 2: Discover jobs
         app_state["pipeline_step"] = 2
-        prefs_data = app_state.get("preferences", {})
+        prefs_data = app_state.get("preferences") or {}
+        titles_val = prefs_data.get("titles")
+        if isinstance(titles_val, str):
+            has_titles = bool(titles_val.strip())
+        elif isinstance(titles_val, list):
+            has_titles = bool(titles_val)
+        else:
+            has_titles = False
+        has_location = bool((prefs_data.get("location") or "").strip())
+        if not has_titles or not has_location:
+            t = get_translations()
+            app_state["pipeline_status"] = PipelineStatus.ERROR
+            app_state["pipeline_error"] = t.get(
+                "error_no_preferences",
+                "Please configure your search preferences first",
+            )
+            return
+
         preferences, for_titles, location = _parse_preferences(prefs_data)
 
         logger.info("Discovering jobs... %d sources", len(api_clients))
@@ -452,7 +473,7 @@ async def execute_pipeline() -> None:
         parsed_jds = await _parse_job_descriptions(postings, gemini_service, rate_limiter, app_state)
 
         # Stage 5: Patch company names
-        language = prefs_data.get("language", "fr")
+        language = prefs_data.get("language") or settings.default_language
         postings = _patch_company_names(postings, parsed_jds)
 
         # Stage 6: Score matches

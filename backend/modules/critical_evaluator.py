@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from backend.config import get_settings
 from backend.prompts import (
     CRITICAL_EVALUATOR_SYSTEM_PROMPT,
     CRITICAL_REVIEW_BULLETS_PROMPT,
@@ -47,9 +48,10 @@ class CriticalEvaluator:
         original_bullets: list[str],
         rewritten_bullets: list[str],
         job_description: str = "",
-        language: str = "fr",
+        language: str | None = None,
     ) -> dict[str, Any]:
         """Review rewritten bullets against originals for fabrication."""
+        language = language or get_settings().default_language
         prompt = CRITICAL_REVIEW_BULLETS_PROMPT.format(
             original_bullets="\n".join(f"- {b}" for b in original_bullets),
             rewritten_bullets="\n".join(f"- {b}" for b in rewritten_bullets),
@@ -69,9 +71,10 @@ class CriticalEvaluator:
         candidate_achievements: list[str],
         target_company: str,
         job_description: str = "",
-        language: str = "fr",
+        language: str | None = None,
     ) -> dict[str, Any]:
         """Review cover letter for entity bleed and hallucinated claims."""
+        language = language or get_settings().default_language
         achievements_text = (
             "\n".join(f"- {a}" for a in candidate_achievements)
             if candidate_achievements
@@ -95,10 +98,12 @@ class CriticalEvaluator:
         self,
         cv_markdown: str,
         original_resume_text: str,
-        target_language: str = "fr",
-        language: str = "fr",
+        target_language: str | None = None,
+        language: str | None = None,
     ) -> dict[str, Any]:
         """Review the full tailored CV for structural and language issues."""
+        language = language or get_settings().default_language
+        target_language = target_language or language
         prompt = CRITICAL_REVIEW_CV_PROMPT.format(
             cv_markdown=cv_markdown,
             original_resume=original_resume_text or PROMPT_NOT_PROVIDED,

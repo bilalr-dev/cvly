@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import re
 
+from backend.config import get_settings
 from backend.prompts import BULLET_CORRECTION_PROMPT, COVER_LETTER_CORRECTION_PROMPT
 from backend.services.gemini_llm import GeminiAPIError, GeminiLLMService
 from backend.utils.constants import (
@@ -55,9 +56,10 @@ async def correct_bullets(
     rewritten_bullets: list[str],
     issues: list[dict],
     gemini_service: GeminiLLMService,
-    language: str = "fr",
+    language: str | None = None,
 ) -> list[str]:
     """Send critic feedback to Gemini to fix flagged bullet issues."""
+    language = language or get_settings().default_language
     if not issues:
         return rewritten_bullets
 
@@ -85,9 +87,10 @@ async def correct_cover_letter(
     cover_letter: str,
     issues: list[dict],
     gemini_service: GeminiLLMService,
-    language: str = "fr",
+    language: str | None = None,
 ) -> str:
     """Send critic feedback to Gemini to fix flagged cover letter issues."""
+    language = language or get_settings().default_language
     if not issues:
         return cover_letter
 

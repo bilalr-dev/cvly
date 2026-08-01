@@ -7,14 +7,16 @@ from backend.prompts import (
     ATF_USER_PROMPT,
 )
 from backend.services.gemini_llm import GeminiLLMService
+from backend.config import get_settings
 
 
 async def analyse_atf(
     resume_text: str,
     jd_text: str,
     gemini_service: GeminiLLMService,
-    language: str = "fr"
+    language: str | None = None
 ) -> ATFAnalysis:
+    language = language or get_settings().default_language
 
     lang_name = "French" if language == "fr" else "English"
     sys_prompt = ATF_SYSTEM_PROMPT.replace("{language}", lang_name)

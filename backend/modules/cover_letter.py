@@ -7,6 +7,7 @@ from typing import Any
 from backend.prompts import COVER_LETTER_PROMPT
 from backend.services.gemini_llm import GeminiLLMService
 from backend.utils.constants import COVER_LETTER_CONVENTIONS
+from backend.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -15,9 +16,12 @@ async def generate_cover_letter(
     jd: Any,
     match_result: Any,
     gemini_service: GeminiLLMService,
-    language: str = "fr",
-    country: str = "FR"
+    language: str | None = None,
+    country: str | None = None
 ) -> str:
+    settings = get_settings()
+    language = language or settings.default_language
+    country = country or settings.default_country
 
     summary = getattr(resume, "summary", "No summary provided")
     candidate_name = getattr(resume, "full_name", None) or getattr(resume, "name", None) or "N/A"

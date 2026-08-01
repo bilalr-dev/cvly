@@ -6,9 +6,10 @@ from typing import Any
 
 import aiohttp
 
+from backend.config import get_settings
 from backend.models.job import RawJobPosting
 from backend.models.preferences import SearchPreferences
-from backend.utils.constants import DEFAULT_JOB_SEARCH_TERM, JSEARCH_DEFAULT_PARAMS
+from backend.utils.constants import JSEARCH_DEFAULT_PARAMS
 from backend.utils.dedup import generate_posting_id
 
 from .base import BaseJobAPIClient
@@ -39,22 +40,24 @@ class JSearchClient(BaseJobAPIClient):
         )
 
     async def search(self, preferences: SearchPreferences) -> list[RawJobPosting]:
+        titles = getattr(preferences, "titles", None) or []
+        if not titles:
+            return []
+
         try:
             async with aiohttp.ClientSession() as session:
                 headers = {"X-RapidAPI-Key": self.api_key}
 
-                query_parts = []
-                if getattr(preferences, "titles", None):
-                    query_parts.append(" ".join(preferences.titles))
+                query_parts = [" ".join(titles)]
                 if getattr(preferences, "location", None):
                     loc = preferences.location.split(",")[0].strip()
                     query_parts.append(f"in {loc}")
 
                 params = {
                     **JSEARCH_DEFAULT_PARAMS,
-                    "query": " ".join(query_parts) if query_parts else DEFAULT_JOB_SEARCH_TERM,
+                    "query": " ".join(query_parts),
                 }
-                country = getattr(preferences, "country", "FR").lower()
+                country = (getattr(preferences, "country", None) or get_settings().default_country).lower()
                 params["country"] = country
                 logger.debug("JSearch params: %s", params)
 

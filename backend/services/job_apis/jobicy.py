@@ -12,10 +12,11 @@ from typing import Any
 
 import aiohttp
 
+from backend.config import get_settings
+from backend.config import get_settings
 from backend.models.job import RawJobPosting
 from backend.utils.constants import (
     COUNTRY_GEO_MAP,
-    DEFAULT_JOB_SEARCH_TERM,
     HTTP_OK,
     JOB_API_TIMEOUT_SECONDS,
     JOBICY_BASE_URL,
@@ -28,16 +29,14 @@ from backend.utils.location_filter import filter_by_location
 logger = logging.getLogger(__name__)
 
 
-def _build_search_params(preferences: Any) -> dict[str, str]:
-    search_term = (
-        " ".join(preferences.titles)
-        if getattr(preferences, "titles", None)
-        else DEFAULT_JOB_SEARCH_TERM
-    )
-    country = getattr(preferences, "country", "FR").upper()
+def _build_search_params(preferences: Any) -> dict[str, str] | None:
+    titles = getattr(preferences, "titles", None) or []
+    if not titles:
+        return None
+    country = (getattr(preferences, "country", None) or get_settings().default_country).upper()
     return {
         "count": JOBICY_DEFAULT_COUNT,
-        "tag": search_term,
+        "tag": " ".join(titles),
         "geo": COUNTRY_GEO_MAP.get(country, "europe"),
     }
 
@@ -79,6 +78,8 @@ class JobicyClient:
     async def search(self, preferences: Any) -> list[RawJobPosting]:
         """Search Jobicy for remote jobs matching preferences."""
         params = _build_search_params(preferences)
+        if params is None:
+            return []
         timeout = aiohttp.ClientTimeout(total=JOB_API_TIMEOUT_SECONDS)
         try:
             # Nested (not combined) async with - avoids aiohttp SSL cleanup races
@@ -109,7 +110,7 @@ class JobicyClient:
         results = filter_by_location(
             postings=results,
             user_location=user_location,
-            remote_ok=getattr(preferences, "remote_ok", False),
+            remote_ok=bool(getattr(preferences, "remote_ok", False)),
         )
 
         logger.debug("Jobicy returned %d results", len(results))

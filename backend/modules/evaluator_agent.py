@@ -14,6 +14,7 @@ from backend.models.tailoring import EvaluatorVerdict
 from backend.prompts import EVALUATOR_AGENT_PROMPT
 from backend.services.gemini_llm import GeminiAPIError, GeminiLLMService
 from backend.utils.constants import PROMPT_NOT_PROVIDED, get_language_display_name
+from backend.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ async def evaluate_tailored_output(
     rewritten_bullets: list[str],
     gemini_service: GeminiLLMService,
     job_description: str = "",
-    language: str = "fr",
+    language: str | None = None,
 ) -> EvaluatorVerdict:
     """Run the evaluator agent on rewritten bullets.
 
@@ -40,6 +41,7 @@ async def evaluate_tailored_output(
     Returns:
         EvaluatorVerdict with is_acceptable flag and any violations found.
     """
+    language = language or get_settings().default_language
     if not original_bullets or not rewritten_bullets:
         return EvaluatorVerdict(
             is_acceptable=True,

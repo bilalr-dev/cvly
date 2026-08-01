@@ -31,7 +31,7 @@ async def get_dashboard(request: Request) -> HTMLResponse:
         from datetime import datetime
         try:
             dt = datetime.fromisoformat(last_run_raw)
-            lang = app_state.get("language", "fr")
+            lang = app_state.get("language") or get_settings().default_language
             if lang == "fr":
                 last_run_display = dt.strftime("%d/%m/%Y à %H:%M")
             else:
@@ -63,7 +63,7 @@ async def get_dashboard(request: Request) -> HTMLResponse:
         "jobs_count": jobs_count,
         "avg_score": avg_score,
         "above_threshold": above_threshold,
-        "language": app_state.get("language", "fr"),
+        "language": app_state.get("language") or get_settings().default_language,
         "t": t,
         "step": app_state.get("pipeline_step", 0),
         "total": app_state.get("pipeline_total_steps", 5),

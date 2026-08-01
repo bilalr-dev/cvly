@@ -17,7 +17,7 @@ class SearchPreferences(BaseModel):
     language: SupportedLanguage = "fr"
     location: str = ""
     max_results_per_source: int = 20
-    radius_km: int = Field(default=10, gt=0)
+    radius_km: int = Field(default=0, ge=0)
     remote_ok: bool = False
-    seniority: SeniorityLevel = "junior"
+    seniority: SeniorityLevel | None = None
     titles: list[str] = Field(default_factory=list)

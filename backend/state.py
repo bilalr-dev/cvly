@@ -11,6 +11,7 @@ from typing import Any
 
 from fastapi.templating import Jinja2Templates
 
+from backend.config import get_settings
 from backend.utils.constants import TRANSLATIONS, PipelineStatus
 
 logger = logging.getLogger(__name__)
@@ -82,7 +83,7 @@ app_state: dict[str, Any] = {
     "match_results": {},
     "parsed_jds": {},
     "last_run": None,
-    "language": "fr",
+    "language": get_settings().default_language,
     "approved_jobs": set(),
     "skipped_jobs": set(),
     "saved_files": {},
@@ -204,5 +205,6 @@ load_pipeline_data()
 
 
 def get_translations() -> dict[str, str]:
-    lang = app_state.get("language", "fr")
-    return TRANSLATIONS.get(lang, TRANSLATIONS["fr"])
+    default_lang = get_settings().default_language
+    lang = app_state.get("language") or default_lang
+    return TRANSLATIONS.get(lang, TRANSLATIONS[default_lang])

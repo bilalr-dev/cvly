@@ -39,6 +39,9 @@ class AdzunaClient(BaseJobAPIClient):
         )
 
     async def search(self, preferences: SearchPreferences) -> list[RawJobPosting]:
+        if not getattr(preferences, "titles", None):
+            return []
+
         try:
             async with aiohttp.ClientSession() as session:
                 params = {
@@ -47,8 +50,7 @@ class AdzunaClient(BaseJobAPIClient):
                     "results_per_page": "20",
                 }
 
-                if getattr(preferences, "titles", None):
-                    params["what"] = " ".join(preferences.titles)
+                params["what"] = " ".join(preferences.titles)
                 if getattr(preferences, "location", None):
                     params["where"] = preferences.location
 

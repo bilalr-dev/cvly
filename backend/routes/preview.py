@@ -27,6 +27,7 @@ from backend.services.gemini_llm import GeminiAPIError, GeminiLLMService
 from backend.state import app_state, get_translations, save_pipeline_data, templates
 from backend.utils.constants import (
     CRITICAL_REVIEW_ACHIEVEMENT_LIMIT,
+    JOB_NOT_FOUND_DETAIL,
     PREVIEW_TEMPLATE,
     TRANSLATION_CONTENT_PLACEHOLDER,
     TRANSLATION_TARGET_LANGUAGE_PLACEHOLDER,
@@ -362,6 +363,8 @@ async def _rereview_corrected(
     cover_issues: list[dict],
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Re-run Groq only on tracks that had issues."""
+    summary = (getattr(resume, "summary", "") or "") if resume else ""
+    achievements = _resume_achievements(resume)[:CRITICAL_REVIEW_ACHIEVEMENT_LIMIT] if resume else []
     return await asyncio.gather(
         critic.review_bullets(
             original_bullets=orig_texts,
@@ -371,8 +374,8 @@ async def _rereview_corrected(
         ) if bullet_issues else _identity({"issues": []}),
         critic.review_cover_letter(
             cover_letter_text=corrected_cover,
-            candidate_summary=(getattr(resume, "summary", "") or "") if resume else "",
-            candidate_achievements=_resume_achievements(resume)[:CRITICAL_REVIEW_ACHIEVEMENT_LIMIT] if resume else [],
+            candidate_summary=summary,
+            candidate_achievements=achievements,
             target_company=job.get("company", ""),
             job_description=job.get("description", ""),
             language=language,
@@ -674,7 +677,7 @@ async def _track_in_sheets(
 
 router = APIRouter(prefix="/preview")
 
-_RESPONSES_404 = {404: {"description": "Job not found"}}
+_RESPONSES_404 = {404: {"description": JOB_NOT_FOUND_DETAIL}}
 
 
 @router.get("/{job_id}", response_class=HTMLResponse, responses=_RESPONSES_404)
@@ -685,9 +688,9 @@ async def preview_job(request: Request, job_id: str) -> HTMLResponse:
 
     job = get_job_data(job_id)
     if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
+        raise HTTPException(status_code=404, detail=JOB_NOT_FOUND_DETAIL)
 
-    language = app_state.get("language", "fr")
+    language = app_state.get("language") or get_settings().default_language
     tailored_cache = app_state.setdefault("tailored_outputs", {})
     cached = tailored_cache.get(f"{job_id}_{language}")
 
@@ -709,7 +712,7 @@ async def preview_job(request: Request, job_id: str) -> HTMLResponse:
     try:
         settings = get_settings()
         gemini = GeminiLLMService(api_key=settings.gemini_api_key)
-        country = (app_state.get("preferences") or {}).get("country", "FR")
+        country = (app_state.get("preferences") or {}).get("country") or get_settings().default_country
 
         if isinstance(resume, BaseModel):
             resume = resume.model_copy(deep=True)
@@ -771,9 +774,9 @@ async def approve_job(request: Request, job_id: str) -> RedirectResponse:
     """Approve tailored CV: save files to disk and track in Google Sheets."""
     job = get_job_data(job_id)
     if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
+        raise HTTPException(status_code=404, detail=JOB_NOT_FOUND_DETAIL)
 
-    language = app_state.get("language", "fr")
+    language = app_state.get("language") or get_settings().default_language
     cache_key = f"{job_id}_{language}"
     tailored = app_state.get("tailored_outputs", {}).get(cache_key)
 
@@ -810,7 +813,7 @@ async def approve_job(request: Request, job_id: str) -> RedirectResponse:
 async def view_resume(request: Request, job_id: str) -> HTMLResponse:
     """Render the tailored resume as a styled, printable HTML page."""
     t = get_translations()
-    language = app_state.get("language", "fr")
+    language = app_state.get("language") or get_settings().default_language
     cache_key = f"{job_id}_{language}"
     tailored = app_state.get("tailored_outputs", {}).get(cache_key)
 
@@ -837,7 +840,7 @@ async def view_resume(request: Request, job_id: str) -> HTMLResponse:
 async def view_cover_letter(request: Request, job_id: str) -> HTMLResponse:
     """Render the cover letter as a styled, printable HTML page."""
     t = get_translations()
-    language = app_state.get("language", "fr")
+    language = app_state.get("language") or get_settings().default_language
     cache_key = f"{job_id}_{language}"
     tailored = app_state.get("tailored_outputs", {}).get(cache_key)
 
@@ -868,7 +871,7 @@ async def view_cover_letter(request: Request, job_id: str) -> HTMLResponse:
 async def regenerate_job(request: Request, job_id: str) -> RedirectResponse:
     """Clear cache and regenerate tailored CV."""
     tailored_cache = app_state.setdefault("tailored_outputs", {})
-    language = app_state.get("language", "fr")
+    language = app_state.get("language") or get_settings().default_language
     tailored_cache.pop(f"{job_id}_{language}", None)
     return RedirectResponse(url=f"/preview/{job_id}", status_code=302)
 
@@ -879,7 +882,7 @@ async def save_edits(job_id: str, request: Request) -> JSONResponse:
     data = await request.json()
     new_cover_letter = data.get("cover_letter", "")
 
-    language = app_state.get("language", "fr")
+    language = app_state.get("language") or get_settings().default_language
     cache_key = f"{job_id}_{language}"
     tailored_cache = app_state.setdefault("tailored_outputs", {})
 
