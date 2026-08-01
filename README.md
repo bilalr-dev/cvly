@@ -426,20 +426,41 @@ Change these only if you know why.
 
 ### Production release (recommended for most users)
 
-An **optimized production tag** will be published on the next GitHub push (release tag on [github.com/bilalr-dev/cvly](https://github.com/bilalr-dev/cvly)). Prefer that tagged release over a random commit:
+Use a **tagged release**, not a random commit. Latest stable tag: **`v1.0.2`**.
+
+All tags and release notes: [github.com/bilalr-dev/cvly/releases](https://github.com/bilalr-dev/cvly/releases)  
+All tags list: [github.com/bilalr-dev/cvly/tags](https://github.com/bilalr-dev/cvly/tags)
+
+| Tag | What it is |
+|---|---|
+| `v1.0.2` | Latest stable (docs + run guide with tags) - **use this** |
+| `v1.0.1` | Tailwind CDN CORS fix |
+| `v1.0.0` | First production release |
+
+**New install**
 
 ```bash
 git clone https://github.com/bilalr-dev/cvly.git
 cd cvly
 git fetch --tags
-git checkout <release-tag>    # e.g. v1.0.0 - use the tag shown on the Releases page
+git checkout v1.0.2
 cp .env.example .env
 # Fill .env (section 5)
 ./start.sh        # macOS / Linux
 # or: start.bat   # Windows
 ```
 
-Your browser should open at **http://localhost:8000**.
+**Already cloned - switch to / update the tag**
+
+```bash
+cd cvly
+git fetch --tags
+git checkout v1.0.2
+./start.sh        # macOS / Linux
+# or: start.bat   # Windows
+```
+
+Your browser should open at **http://localhost:8000**. If styles look broken, hard-refresh the page (`Cmd+Shift+R` / `Ctrl+Shift+R`).
 
 ### Local development (current branch)
 
@@ -926,20 +947,41 @@ DEFAULT_COUNTRY=FR
 
 ### Version production (recommandée pour la plupart des utilisateurs)
 
-Un **tag de production optimisé** sera publié au prochain push GitHub (page Releases de [github.com/bilalr-dev/cvly](https://github.com/bilalr-dev/cvly)). Préférez ce tag à un commit au hasard :
+Utilisez un **tag de release**, pas un commit au hasard. Dernier tag stable : **`v1.0.2`**.
+
+Toutes les releases : [github.com/bilalr-dev/cvly/releases](https://github.com/bilalr-dev/cvly/releases)  
+Liste des tags : [github.com/bilalr-dev/cvly/tags](https://github.com/bilalr-dev/cvly/tags)
+
+| Tag | Contenu |
+|---|---|
+| `v1.0.2` | Dernière version stable (docs + guide de lancement) - **à utiliser** |
+| `v1.0.1` | Correctif CORS CDN Tailwind |
+| `v1.0.0` | Première release production |
+
+**Nouvelle installation**
 
 ```bash
 git clone https://github.com/bilalr-dev/cvly.git
 cd cvly
 git fetch --tags
-git checkout <tag-de-release>    # ex. v1.0.0 - voir la page Releases
+git checkout v1.0.2
 cp .env.example .env
 # Remplir le .env (section 5)
 ./start.sh        # macOS / Linux
 # ou : start.bat  # Windows
 ```
 
-Le navigateur s’ouvre sur **http://localhost:8000**.
+**Déjà cloné - passer au / mettre à jour le tag**
+
+```bash
+cd cvly
+git fetch --tags
+git checkout v1.0.2
+./start.sh        # macOS / Linux
+# ou : start.bat  # Windows
+```
+
+Le navigateur s’ouvre sur **http://localhost:8000**. Si le style est cassé, forcez le rechargement (`Cmd+Shift+R` / `Ctrl+Shift+R`).
 
 ### Développement local (branche courante)
 
