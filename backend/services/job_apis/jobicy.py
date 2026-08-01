@@ -74,7 +74,7 @@ class JobicyClient:
     """Free remote jobs API - no API key needed."""
 
     def __init__(self) -> None:
-        pass
+        """Stateless free API client; no credentials required."""
 
     async def search(self, preferences: Any) -> list[RawJobPosting]:
         """Search Jobicy for remote jobs matching preferences."""

@@ -16,5 +16,5 @@ async def websocket_progress(websocket: WebSocket) -> None:
 
     try:
         await websocket.send_json({"status": "connected"})
-    except (WebSocketDisconnect, RuntimeError) as e:
-        logger.error("WebSocket error: %s", e)
+    except (WebSocketDisconnect, RuntimeError):
+        logger.exception("WebSocket error")

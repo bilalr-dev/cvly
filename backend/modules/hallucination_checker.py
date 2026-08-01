@@ -19,7 +19,7 @@ from backend.utils.constants import (
     HALLUCINATION_SHORT_TECH_NAMES as _SHORT_TECH_NAMES,
 )
 
-_TECH_PATTERN = re.compile(r"[\.0-9]|[a-z][A-Z]")
+_TECH_PATTERN = re.compile(r"[.0-9]|[a-z][A-Z]")
 _MIN_METRIC_DIGITS = 2
 
 
@@ -49,8 +49,7 @@ def _build_known_terms(resume: Any) -> set[str]:
 
     for exp in getattr(resume, "experience", []):
         for bullet in getattr(exp, "bullets", []):
-            for w in str(bullet).lower().split():
-                known_terms.add(w)
+            known_terms.update(str(bullet).lower().split())
     return known_terms
 
 
@@ -65,7 +64,7 @@ def _clean_word(word: str) -> str | None:
     stripped = word.strip(".,;:!?()[]")
     if not stripped:
         return None
-    cleaned = re.sub(r"[^\w\.]", "", stripped)
+    cleaned = re.sub(r"[^\w.]", "", stripped)
     return cleaned or None
 
 
@@ -139,6 +138,21 @@ def _check_tech_terms(
     return None
 
 
+def _warning_for_word(
+    word_clean: str,
+    position: int,
+    rewritten_text: str,
+    resume: Any,
+    known_terms: set[str],
+) -> HallucinationWarning | None:
+    """Return a warning for one token, or None if clean."""
+    if _is_metric_token(word_clean):
+        return _check_fabricated_metrics(word_clean, resume, rewritten_text)
+    if len(word_clean) <= 2:
+        return _check_short_tech_names(word_clean, known_terms, rewritten_text)
+    return _check_tech_terms(word_clean, known_terms, rewritten_text, position)
+
+
 def check_hallucinations(tailored_output: Any, resume: Any) -> list[HallucinationWarning]:
     """Scan rewritten bullets for fabricated metrics and unknown tech terms."""
     known_terms = _build_known_terms(resume)
@@ -153,21 +167,7 @@ def check_hallucinations(tailored_output: Any, resume: Any) -> list[Hallucinatio
             word_clean = _clean_word(word)
             if not word_clean:
                 continue
-
-            # Preserve original short-circuit order: metrics → short names → tech terms
-            if _is_metric_token(word_clean):
-                warning = _check_fabricated_metrics(word_clean, resume, rewritten_text)
-                if warning:
-                    warnings.append(warning)
-                continue
-
-            if len(word_clean) <= 2:
-                warning = _check_short_tech_names(word_clean, known_terms, rewritten_text)
-                if warning:
-                    warnings.append(warning)
-                continue
-
-            warning = _check_tech_terms(word_clean, known_terms, rewritten_text, i)
+            warning = _warning_for_word(word_clean, i, rewritten_text, resume, known_terms)
             if warning:
                 warnings.append(warning)
 

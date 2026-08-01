@@ -11,6 +11,7 @@ from gspread.utils import rowcol_to_a1
 from backend.models import MatchResult, ParsedJobDescription, RawJobPosting
 from backend.utils.constants import (
     GOOGLE_SHEETS_SCOPES,
+    SHEETS_NOT_CONNECTED_MSG,
     SHEETS_TRACKER_HEADERS as _HEADERS,
     SHEETS_TRACKER_STATUS_VALUES as STATUS_VALUES,
 )
@@ -44,7 +45,7 @@ class SheetsTracker:
 
     def setup_headers(self, language: str = "fr") -> None:
         if self.worksheet is None:
-            raise RuntimeError("Not connected. Call connect() first.")
+            raise RuntimeError(SHEETS_NOT_CONNECTED_MSG)
 
         headers = _HEADERS.get(language, _HEADERS["en"])
         self.worksheet.update("A1:N1", [headers])
@@ -98,7 +99,7 @@ class SheetsTracker:
     def _ensure_headers(self, language: str = "fr") -> None:
         """Write column headers once if the sheet is still empty."""
         if self.worksheet is None:
-            raise RuntimeError("Not connected. Call connect() first.")
+            raise RuntimeError(SHEETS_NOT_CONNECTED_MSG)
         if not self.worksheet.acell("A1").value:
             self.setup_headers(language)
             self._style_headers()
@@ -113,7 +114,7 @@ class SheetsTracker:
         language: str = "fr"
     ) -> None:
         if self.worksheet is None:
-            raise RuntimeError("Not connected. Call connect() first.")
+            raise RuntimeError(SHEETS_NOT_CONNECTED_MSG)
 
         self._ensure_headers(language)
 

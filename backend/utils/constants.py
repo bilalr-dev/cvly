@@ -3,6 +3,14 @@ from __future__ import annotations
 
 from enum import StrEnum
 
+# Preview template / translation placeholders
+PREVIEW_TEMPLATE: str = "preview.html"
+TRANSLATION_TARGET_LANGUAGE_PLACEHOLDER: str = "{target_language}"
+TRANSLATION_CONTENT_PLACEHOLDER: str = "{content}"
+
+# Sheets tracker
+SHEETS_NOT_CONNECTED_MSG: str = "Not connected. Call connect() first."
+
 # UI limits and logic
 MIN_BULLET_LENGTH: int = 25
 MAX_BULLETS_PER_ROLE: int = 4

@@ -12,12 +12,10 @@ from backend.utils.constants import SUPPORTED_CONTRACT_TYPES, SUPPORTED_LANGUAGE
 ContractType = Literal["CDD", "CDI", "alternance_apprentissage", "alternance_professionnalisation", "freelance", "stage"]
 SupportedLanguage = Literal["en", "fr"]
 
-assert set(get_args(ContractType)) == set(SUPPORTED_CONTRACT_TYPES), (
-    "ContractType Literal and SUPPORTED_CONTRACT_TYPES are out of sync; update both together"
-)
-assert set(get_args(SupportedLanguage)) == set(SUPPORTED_LANGUAGES), (
-    "SupportedLanguage Literal and SUPPORTED_LANGUAGES are out of sync; update both together"
-)
+if set(get_args(ContractType)) != set(SUPPORTED_CONTRACT_TYPES):
+    raise RuntimeError("ContractType Literal and SUPPORTED_CONTRACT_TYPES are out of sync; update both together")
+if set(get_args(SupportedLanguage)) != set(SUPPORTED_LANGUAGES):
+    raise RuntimeError("SupportedLanguage Literal and SUPPORTED_LANGUAGES are out of sync; update both together")
 
 
 class RawJobPosting(BaseModel):

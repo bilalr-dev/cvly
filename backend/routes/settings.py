@@ -1,6 +1,7 @@
 """Settings page: resume upload and search preferences."""
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import tempfile
@@ -27,8 +28,11 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/settings")
 
+_RESPONSES_400 = {400: {"description": "Bad request"}}
+_RESPONSES_404 = {404: {"description": "Not found"}}
 
-@router.post("/language/{lang}")
+
+@router.post("/language/{lang}", responses=_RESPONSES_400)
 async def set_language(lang: str) -> HTMLResponse:
     if lang not in ("fr", "en"):
         raise HTTPException(status_code=400, detail="Unsupported language")
@@ -93,20 +97,24 @@ async def get_settings(request: Request) -> HTMLResponse:
     })
 
 
-@router.post("/upload")
+@router.post("/upload", responses=_RESPONSES_400)
 async def upload_resume(file: UploadFile, request: Request) -> Any:
     if not file.filename:
         raise HTTPException(status_code=400, detail="Missing filename")
 
-    if not (file.filename.endswith(".pdf") or file.filename.endswith(".docx")):
+    if not file.filename.endswith((".pdf", ".docx")):
         logger.warning("Invalid file type uploaded: %s", file.filename)
         raise HTTPException(status_code=400, detail="Only .pdf and .docx files are supported")
 
     suffix = Path(file.filename).suffix
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
-        temp_file.write(await file.read())
-        temp_path = temp_file.name
+    content = await file.read()
 
+    def _write_temp(data: bytes, file_suffix: str) -> str:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=file_suffix) as temp_file:
+            temp_file.write(data)
+            return temp_file.name
+
+    temp_path = await asyncio.to_thread(_write_temp, content, suffix)
     try:
         settings = get_app_settings()
         parser = ResumeParser(api_key=settings.gemini_api_key)
@@ -170,7 +178,7 @@ async def reset_resume(request: Request) -> HTMLResponse:
     )
 
 
-@router.post("/preferences")
+@router.post("/preferences", responses=_RESPONSES_400)
 async def post_save_preferences(request: Request) -> Any:
     content_type = request.headers.get("content-type", "")
 

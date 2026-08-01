@@ -26,7 +26,7 @@ class RemotiveClient:
     """Free remote jobs API (no key)."""
 
     def __init__(self) -> None:
-        pass
+        """Stateless free API client; no credentials required."""
 
     async def search(self, preferences: Any) -> list[RawJobPosting]:
         """Search Remotive for remote jobs matching preferences."""

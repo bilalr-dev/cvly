@@ -14,6 +14,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/results")
 
+_RESPONSES_404 = {404: {"description": "Job not found"}}
+
 def get_job_by_id(job_id: str) -> dict[str, Any] | None:
     jobs = app_state.get("pipeline_results", [])
     match_results = app_state.get("match_results", {})
@@ -119,7 +121,7 @@ async def skip_job(request: Request, job_id: str) -> HTMLResponse:
     logger.debug("Skipped job %s", job_id)
     return HTMLResponse(content="", status_code=200)
 
-@router.get("/job/{job_id}", response_class=HTMLResponse)
+@router.get("/job/{job_id}", response_class=HTMLResponse, responses=_RESPONSES_404)
 async def get_job_partial(request: Request, job_id: str) -> HTMLResponse:
     job = get_job_by_id(job_id)
     if not job:

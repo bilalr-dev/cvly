@@ -7,7 +7,6 @@ import logging
 from backend.models.job import RawJobPosting
 from backend.models.preferences import SearchPreferences
 from backend.services.job_apis.base import BaseJobAPIClient
-from backend.services.rate_limiter import AsyncRateLimiter
 from backend.utils.dedup import deduplicate_postings
 
 logger = logging.getLogger(__name__)
@@ -18,7 +17,6 @@ class JobDiscovery:
         self,
         preferences: SearchPreferences,
         api_clients: list[BaseJobAPIClient],
-        rate_limiter: AsyncRateLimiter
     ) -> list[RawJobPosting]:
         tasks = [client.search(preferences) for client in api_clients]
         results = await asyncio.gather(*tasks, return_exceptions=True)

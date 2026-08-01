@@ -22,11 +22,37 @@ logger = logging.getLogger(__name__)
 _BASE_URL = "https://www.arbeitnow.com/api/job-board-api"
 
 
+def _parse_arbeitnow_item(item: dict[str, Any]) -> RawJobPosting | None:
+    try:
+        title = item.get("title", "")
+        company = item.get("company_name", "")
+        loc = item.get("location", "")
+        if loc:
+            location = loc
+        elif item.get("remote", False):
+            location = "Remote"
+        else:
+            location = ""
+        return RawJobPosting(
+            id=generate_posting_id(title, company, loc),
+            title=title,
+            company=company,
+            location=location,
+            url=item.get("url", ""),
+            description_text=item.get("description", ""),
+            source="arbeitnow",
+            date_posted=item.get("created_at"),
+        )
+    except (KeyError, ValueError) as e:
+        logger.debug("Skipping Arbeitnow item: %s", e)
+        return None
+
+
 class ArbeitnowClient:
     """Free job board API (no key)."""
 
     def __init__(self) -> None:
-        pass
+        """Stateless free API client; no credentials required."""
 
     async def search(self, preferences: Any) -> list[RawJobPosting]:
         """Search Arbeitnow for jobs matching preferences."""
@@ -35,18 +61,20 @@ class ArbeitnowClient:
             if getattr(preferences, "titles", None)
             else DEFAULT_JOB_SEARCH_TERM
         )
-        location = preferences.location.split(",")[0].strip() if getattr(preferences, "location", None) else ""
+        location = (
+            preferences.location.split(",")[0].strip()
+            if getattr(preferences, "location", None)
+            else ""
+        )
 
         # Note: Arbeitnow API does not support radius filtering.
-        params: dict[str, str] = {
-            "search": search_term,
-        }
+        params: dict[str, str] = {"search": search_term}
         if location:
             params["location"] = location
 
         timeout = aiohttp.ClientTimeout(total=15)
         try:
-            async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with aiohttp.ClientSession(timeout=timeout) as session:  # noqa: SIM117
                 async with session.get(_BASE_URL, params=params) as response:
                     if response.status != 200:
                         logger.warning("Arbeitnow HTTP %d", response.status)
@@ -59,31 +87,11 @@ class ArbeitnowClient:
         if not isinstance(data, dict):
             return []
 
-        results: list[RawJobPosting] = []
-        for item in data.get("data", []):
-            try:
-                title = item.get("title", "")
-                company = item.get("company_name", "")
-                loc = item.get("location", "")
-                url = item.get("url", "")
-                description = item.get("description", "")
-                remote = item.get("remote", False)
-
-                posting_id = generate_posting_id(title, company, loc)
-
-                results.append(RawJobPosting(
-                    id=posting_id,
-                    title=title,
-                    company=company,
-                    location=loc if loc else ("Remote" if remote else ""),
-                    url=url,
-                    description_text=description,
-                    source="arbeitnow",
-                    date_posted=item.get("created_at"),
-                ))
-            except (KeyError, ValueError) as e:
-                logger.debug("Skipping Arbeitnow item: %s", e)
-                continue
+        results = [
+            posting
+            for item in data.get("data", [])
+            if (posting := _parse_arbeitnow_item(item)) is not None
+        ]
 
         user_location = (
             preferences.location.split(",")[0].strip()

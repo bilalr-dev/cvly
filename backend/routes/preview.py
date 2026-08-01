@@ -27,6 +27,9 @@ from backend.services.gemini_llm import GeminiAPIError, GeminiLLMService
 from backend.state import app_state, get_translations, save_pipeline_data, templates
 from backend.utils.constants import (
     CRITICAL_REVIEW_ACHIEVEMENT_LIMIT,
+    PREVIEW_TEMPLATE,
+    TRANSLATION_CONTENT_PLACEHOLDER,
+    TRANSLATION_TARGET_LANGUAGE_PLACEHOLDER,
     FRENCH_DETECTION_WORDS,
     MAX_KEYWORD_INJECTION_WORDS,
     MIN_BULLET_LENGTH,
@@ -69,8 +72,8 @@ async def _translate(gemini: GeminiLLMService, content: str, target_language: st
     if not content or not content.strip():
         return content
     prompt = (TRANSLATION_PROMPT
-        .replace("{target_language}", target_language)
-        .replace("{content}", content)
+        .replace(TRANSLATION_TARGET_LANGUAGE_PLACEHOLDER, target_language)
+        .replace(TRANSLATION_CONTENT_PLACEHOLDER, content)
     )
     try:
         return await gemini.agenerate_text(prompt, temperature=0.0)
@@ -91,8 +94,8 @@ async def _translate_markers(text: str, gemini: GeminiLLMService, target_languag
         # Batch all markers into one call
         batch = "\n---\n".join(f"{i + 1}. {m.strip()}" for i, m in enumerate(matches))
         batch_prompt = (TRANSLATION_PROMPT
-            .replace("{target_language}", target_language)
-            .replace("{content}", batch)
+            .replace(TRANSLATION_TARGET_LANGUAGE_PLACEHOLDER, target_language)
+            .replace(TRANSLATION_CONTENT_PLACEHOLDER, batch)
         )
         raw = await gemini.agenerate_text(batch_prompt, temperature=0.0)
         parts = raw.split("---")
@@ -118,37 +121,45 @@ async def _translate_markers(text: str, gemini: GeminiLLMService, target_languag
         return pattern.sub(lambda m: m.group(1), text)
 
 
+def _atf_payload(atf: Any) -> dict[str, Any] | None:
+    if not atf:
+        return None
+    match_info = getattr(atf, "match", None)
+    return {
+        "summary": getattr(atf, "summary", ""),
+        "seniority": getattr(atf, "seniority", ""),
+        "recommendation": getattr(atf, "recommendation", ""),
+        "strengths": list(getattr(match_info, "strengths", [])) if match_info else [],
+        "weaknesses": list(getattr(match_info, "weaknesses", [])) if match_info else [],
+    }
+
+
 def get_job_data(job_id: str) -> dict[str, Any] | None:
     """Retrieve job posting + match data by ID."""
     jobs = app_state.get("pipeline_results", [])
     match_results = app_state.get("match_results", {})
 
     for posting in jobs:
-        if getattr(posting, "id", None) == job_id:
-            match = match_results.get(job_id)
-            atf = getattr(match, "atf_analysis", None) if match else None
-            return {
-                "id": posting.id,
-                "company": posting.company,
-                "title": posting.title,
-                "location": posting.location,
-                "url": posting.url,
-                "contract": getattr(posting, "contract_type", "") or "",
-                "description": posting.description_text,
-                "score": round(getattr(match, "overall_score", 0)) if match else 0,
-                "matched_keywords": list(getattr(match, "matched_keywords", [])) if match else [],
-                "missing_keywords": list(getattr(match, "missing_keywords", [])) if match else [],
-                "has_atf": bool(atf),
-                "atf": {
-                    "summary": getattr(atf, "summary", ""),
-                    "seniority": getattr(atf, "seniority", ""),
-                    "recommendation": getattr(atf, "recommendation", ""),
-                    "strengths": list(getattr(atf.match, "strengths", [])) if hasattr(atf, "match") else [],
-                    "weaknesses": list(getattr(atf.match, "weaknesses", [])) if hasattr(atf, "match") else [],
-                } if atf else None,
-                "posting": posting,
-                "match": match,
-            }
+        if getattr(posting, "id", None) != job_id:
+            continue
+        match = match_results.get(job_id)
+        atf = getattr(match, "atf_analysis", None) if match else None
+        return {
+            "id": posting.id,
+            "company": posting.company,
+            "title": posting.title,
+            "location": posting.location,
+            "url": posting.url,
+            "contract": getattr(posting, "contract_type", "") or "",
+            "description": posting.description_text,
+            "score": round(getattr(match, "overall_score", 0)) if match else 0,
+            "matched_keywords": list(getattr(match, "matched_keywords", [])) if match else [],
+            "missing_keywords": list(getattr(match, "missing_keywords", [])) if match else [],
+            "has_atf": bool(atf),
+            "atf": _atf_payload(atf),
+            "posting": posting,
+            "match": match,
+        }
     return None
 
 
@@ -306,6 +317,8 @@ def _apply_corrected_bullets(tailored_output: Any, corrected_bullets: list[str])
 
 
 async def _identity(value: Any) -> Any:
+    """Awaitable no-op used as a gather placeholder when a branch is skipped."""
+    await asyncio.sleep(0)
     return value
 
 
@@ -358,8 +371,8 @@ async def _rereview_corrected(
         ) if bullet_issues else _identity({"issues": []}),
         critic.review_cover_letter(
             cover_letter_text=corrected_cover,
-            candidate_summary=getattr(resume, "summary", "") if resume else "",
-            candidate_achievements=_resume_achievements(resume)[:CRITICAL_REVIEW_ACHIEVEMENT_LIMIT],
+            candidate_summary=(getattr(resume, "summary", "") or "") if resume else "",
+            candidate_achievements=_resume_achievements(resume)[:CRITICAL_REVIEW_ACHIEVEMENT_LIMIT] if resume else [],
             target_company=job.get("company", ""),
             job_description=job.get("description", ""),
             language=language,
@@ -417,9 +430,9 @@ async def _run_critical_with_correction(  # noqa: PLR0913
             language,
         )
 
-        if bullet_issues:
+        if bullet_issues and corrected_bullets is not None:
             tailored_output = _apply_corrected_bullets(tailored_output, corrected_bullets)
-        if cover_issues:
+        if cover_issues and corrected_cover is not None:
             cover_letter_text = corrected_cover
 
         final_bullet_review, final_cover_review = await _rereview_corrected(
@@ -502,8 +515,8 @@ async def _translate_full_document(
 ) -> str:
     """Translate the entire markdown document when no bullets were rewritten."""
     translation_prompt_text = (TRANSLATION_PROMPT
-        .replace("{target_language}", lang_name)
-        .replace("{content}", resume_md_raw)
+        .replace(TRANSLATION_TARGET_LANGUAGE_PLACEHOLDER, lang_name)
+        .replace(TRANSLATION_CONTENT_PLACEHOLDER, resume_md_raw)
     )
     try:
         return await gemini.agenerate_text(translation_prompt_text, temperature=0.0)
@@ -520,7 +533,7 @@ async def _translate_summary_and_skills(
 ) -> None:
     """Translate summary and soft skills in-place in tailored_data."""
     items = [resume.summary or ""]
-    soft_skills = list(getattr(resume.skills, "soft", []) or [])
+    soft_skills = list(getattr(getattr(resume, "skills", None), "soft", []) or [])
     for skill in soft_skills:
         items.append(getattr(skill, "name", "") or "")
         items.append(getattr(skill, "description", "") or "")
@@ -530,8 +543,8 @@ async def _translate_summary_and_skills(
 
     batch = "\n---ITEM---\n".join(items)
     batch_prompt = (TRANSLATION_PROMPT
-        .replace("{target_language}", lang_name)
-        .replace("{content}", batch)
+        .replace(TRANSLATION_TARGET_LANGUAGE_PLACEHOLDER, lang_name)
+        .replace(TRANSLATION_CONTENT_PLACEHOLDER, batch)
     )
     try:
         translated_batch = await gemini.agenerate_text(batch_prompt, temperature=0.0)
@@ -636,31 +649,35 @@ async def _track_in_sheets(
         from backend.models.job import ParsedJobDescription
         from backend.modules.sheets_tracker import SheetsTracker
 
-        tracker = SheetsTracker(
-            credentials_path=settings.google_service_account_path,
-            sheet_id=settings.google_sheet_id,
-        )
-        tracker.connect()
-
-        posting = job.get("posting")
-        jd = app_state.get("parsed_jds", {}).get(job["id"]) or ParsedJobDescription()
-        if posting is not None:
-            tracker.append_job(
-                posting=posting,
-                _jd=jd,
-                match_result=job.get("match"),
-                resume_path=resume_path,
-                cover_letter_path=cover_path,
-                language=language,
+        def _append() -> None:
+            tracker = SheetsTracker(
+                credentials_path=settings.google_service_account_path,
+                sheet_id=settings.google_sheet_id,
             )
+            tracker.connect()
+            posting = job.get("posting")
+            jd = app_state.get("parsed_jds", {}).get(job["id"]) or ParsedJobDescription()
+            if posting is not None:
+                tracker.append_job(
+                    posting=posting,
+                    _jd=jd,
+                    match_result=job.get("match"),
+                    resume_path=resume_path,
+                    cover_letter_path=cover_path,
+                    language=language,
+                )
+
+        await asyncio.to_thread(_append)
     except Exception as e:
         logger.warning("Google Sheets tracking failed: %s", e)
 
 
 router = APIRouter(prefix="/preview")
 
+_RESPONSES_404 = {404: {"description": "Job not found"}}
 
-@router.get("/{job_id}", response_class=HTMLResponse)
+
+@router.get("/{job_id}", response_class=HTMLResponse, responses=_RESPONSES_404)
 async def preview_job(request: Request, job_id: str) -> HTMLResponse:
     """Preview tailored CV for a specific job."""
     t = get_translations()
@@ -676,7 +693,7 @@ async def preview_job(request: Request, job_id: str) -> HTMLResponse:
 
     if cached:
         return templates.TemplateResponse(
-            request=request, name="preview.html",
+            request=request, name=PREVIEW_TEMPLATE,
             context=_preview_context(request, job, language, t, tailored=cached),
         )
 
@@ -685,7 +702,7 @@ async def preview_job(request: Request, job_id: str) -> HTMLResponse:
 
     if not resume or not jd:
         return templates.TemplateResponse(
-            request=request, name="preview.html",
+            request=request, name=PREVIEW_TEMPLATE,
             context=_preview_context(request, job, language, t, error=t.get("error_no_data", "Resume or job description not available for tailoring.")),
         )
 
@@ -732,24 +749,24 @@ async def preview_job(request: Request, job_id: str) -> HTMLResponse:
         tailored_cache[f"{job_id}_{language}"] = tailored_data
 
         return templates.TemplateResponse(
-            request=request, name="preview.html",
+            request=request, name=PREVIEW_TEMPLATE,
             context=_preview_context(request, job, language, t, tailored=tailored_data),
         )
 
     except GeminiAPIError as e:
         error_msg = t.get("error_rate_limit", "...") if "429" in str(e) else t.get("error_tailoring", "Tailoring failed. Please try again.")
         return templates.TemplateResponse(
-            request=request, name="preview.html",
+            request=request, name=PREVIEW_TEMPLATE,
             context=_preview_context(request, job, language, t, error=error_msg),
         )
     except (RuntimeError, ValueError) as e:
         return templates.TemplateResponse(
-            request=request, name="preview.html",
+            request=request, name=PREVIEW_TEMPLATE,
             context=_preview_context(request, job, language, t, error=f"{t.get('error_unexpected', 'Unexpected error')}: {e!s}"),
         )
 
 
-@router.post("/{job_id}/approve")
+@router.post("/{job_id}/approve", responses=_RESPONSES_404)
 async def approve_job(request: Request, job_id: str) -> RedirectResponse:
     """Approve tailored CV: save files to disk and track in Google Sheets."""
     job = get_job_data(job_id)
@@ -789,7 +806,7 @@ async def approve_job(request: Request, job_id: str) -> RedirectResponse:
     return RedirectResponse(url="/results", status_code=302)
 
 
-@router.get("/{job_id}/view/resume", response_class=HTMLResponse)
+@router.get("/{job_id}/view/resume", response_class=HTMLResponse, responses=_RESPONSES_404)
 async def view_resume(request: Request, job_id: str) -> HTMLResponse:
     """Render the tailored resume as a styled, printable HTML page."""
     t = get_translations()
@@ -816,7 +833,7 @@ async def view_resume(request: Request, job_id: str) -> HTMLResponse:
     )
 
 
-@router.get("/{job_id}/view/cover", response_class=HTMLResponse)
+@router.get("/{job_id}/view/cover", response_class=HTMLResponse, responses=_RESPONSES_404)
 async def view_cover_letter(request: Request, job_id: str) -> HTMLResponse:
     """Render the cover letter as a styled, printable HTML page."""
     t = get_translations()

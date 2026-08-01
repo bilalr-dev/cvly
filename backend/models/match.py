@@ -13,9 +13,8 @@ from .resume import ProfileType
 # The canonical string values live in backend/utils/constants.py.
 SeniorityLevel = Literal["alternant", "intermédiaire", "junior", "lead", "mid", "senior", "stagiaire"]
 
-assert set(get_args(SeniorityLevel)) == set(SUPPORTED_SENIORITY_LEVELS), (
-    "SeniorityLevel Literal and SUPPORTED_SENIORITY_LEVELS are out of sync; update both together"
-)
+if set(get_args(SeniorityLevel)) != set(SUPPORTED_SENIORITY_LEVELS):
+    raise RuntimeError("SeniorityLevel Literal and SUPPORTED_SENIORITY_LEVELS are out of sync; update both together")
 
 
 class ATFAnalysis(BaseModel):

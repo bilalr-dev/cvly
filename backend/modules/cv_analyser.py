@@ -1,6 +1,7 @@
 """CV-JD matching: keyword scoring, embeddings, and MatchResult assembly."""
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from datetime import datetime, timezone
@@ -160,8 +161,10 @@ async def analyse_cv(
     jd_text = " ".join(jd_parts)
 
     try:
-        r_embed = embeddings_service.embed_text(resume_text)
-        j_embed = embeddings_service.embed_text(jd_text)
+        r_embed, j_embed = await asyncio.gather(
+            asyncio.to_thread(embeddings_service.embed_text, resume_text),
+            asyncio.to_thread(embeddings_service.embed_text, jd_text),
+        )
         sem_score = cosine_similarity(r_embed, j_embed)
     except (ValueError, TypeError, GeminiAPIError):
         sem_score = 0.0

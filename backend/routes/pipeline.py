@@ -162,51 +162,47 @@ def _reclassify_contracts(postings: list) -> list:
     return postings
 
 
+def _contract_type_from_string(contract_str: str) -> str | None:
+    """Map free-text contract_type to a normalized key."""
+    if not contract_str:
+        return None
+    mapping = (
+        (("cdi", "permanent"), "cdi"),
+        (("cdd", "fixed"), "cdd"),
+        (("freelance",), "freelance"),
+        (("stage", "internship"), "stage"),
+        (("alternance", "apprentissage"), "alternance_apprentissage"),
+    )
+    for keywords, normalized in mapping:
+        if any(kw in contract_str for kw in keywords):
+            return normalized
+    return None
+
+
+def _detect_contract_from_title(title_lower: str) -> str | None:
+    for contract_key, signals in TITLE_CONTRACT_SIGNALS.items():
+        if any(signal in title_lower for signal in signals):
+            return contract_key
+    return None
+
+
 def _filter_by_contract(postings: list, selected_contracts: list) -> list:
     """Filter postings by user-selected contract types."""
     if not selected_contracts:
         return postings
 
     selected_lower = {c.lower() for c in selected_contracts}
-
     filtered = []
     for p in postings:
         title_lower = p.title.lower()
         contract_str = (p.contract_type or "").lower()
-
-        # Step 1: Detect contract type from title if not set explicitly
-        detected_type = None
-        for contract_key, signals in TITLE_CONTRACT_SIGNALS.items():
-            if any(signal in title_lower for signal in signals):
-                detected_type = contract_key
-                break
-
-        # Step 2: Use explicit contract_type if available, otherwise use detected
-        effective_type = None
-        if contract_str:
-            # Map explicit contract strings to our types
-            if any(kw in contract_str for kw in ["cdi", "permanent"]):
-                effective_type = "cdi"
-            elif any(kw in contract_str for kw in ["cdd", "fixed"]):
-                effective_type = "cdd"
-            elif any(kw in contract_str for kw in ["freelance"]):
-                effective_type = "freelance"
-            elif any(kw in contract_str for kw in ["stage", "internship"]):
-                effective_type = "stage"
-            elif any(kw in contract_str for kw in ["alternance", "apprentissage"]):
-                effective_type = "alternance_apprentissage"
-
-        # Step 3: Title detection overrides when no explicit type
-        if not effective_type and detected_type:
-            effective_type = detected_type
-
-        # Step 4: Decision
-        if effective_type:
-            # We know the type: keep only if it matches selection
-            if effective_type in selected_lower:
-                filtered.append(p)
-            # else: skip; type doesn't match
-        else:
+        effective_type = (
+            _contract_type_from_string(contract_str)
+            or _detect_contract_from_title(title_lower)
+        )
+        if effective_type and effective_type in selected_lower:
+            filtered.append(p)
+        elif not effective_type:
             # Unknown type: benefit of the doubt, keep it
             filtered.append(p)
 
@@ -329,9 +325,9 @@ async def _score_matches(postings: list, parsed_jds: dict, resume: Any, embeddin
     match_results = {}
     for i, posting in enumerate(postings, 1):
         app_state["pipeline_step_detail"] = f"{i}/{len(postings)}"
-        if posting.id not in parsed_jds:
+        jd = parsed_jds.get(posting.id)
+        if jd is None:
             continue
-        jd = parsed_jds[posting.id]
         try:
             match_result = await analyse_cv(
                 resume=resume,
@@ -339,7 +335,8 @@ async def _score_matches(postings: list, parsed_jds: dict, resume: Any, embeddin
                 embeddings_service=embeddings_service,
                 alias_map=alias_map,
             )
-            match_results[posting.id] = match_result
+            if match_result is not None:
+                match_results[posting.id] = match_result
         except (GeminiAPIError, ValueError, TypeError) as e:
             logger.warning("Failed to score %s: %s", posting.id, e)
             continue
@@ -404,7 +401,7 @@ async def execute_pipeline() -> None:
 
         discovery_engine = JobDiscovery()
         postings = await discovery_engine.discover_jobs(
-            preferences=preferences, api_clients=api_clients, rate_limiter=rate_limiter,
+            preferences=preferences, api_clients=api_clients,
         )
         raw_count = len(postings)
 
