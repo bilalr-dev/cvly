@@ -33,3 +33,5 @@ tests/
 
 Thumbs.db
 backend/.sonar/
+# Added by ggshield
+.cache_ggshield

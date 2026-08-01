@@ -9,8 +9,7 @@ import google.generativeai as genai
 from pydantic import BaseModel, ValidationError
 
 from backend.prompts import GEMINI_JSON_RESPONSE_SUFFIX
-
-GEMINI_MODEL = "gemini-3.1-flash-lite"
+from backend.utils.constants import GEMINI_MODEL
 
 
 class GeminiAPIError(Exception):
@@ -123,11 +122,11 @@ class GeminiLLMService:
         response_schema: type[BaseModel],
         temperature: float = 0.0,
     ) -> BaseModel:
-        """Async JSON generation - offloads blocking SDK I/O to a worker thread."""
+        """Run JSON generation off the event loop (SDK calls are blocking)."""
         return await asyncio.to_thread(
             self.generate_json, prompt, response_schema, temperature,
         )
 
     async def agenerate_text(self, prompt: str, temperature: float = 0.5) -> str:
-        """Async text generation - offloads blocking SDK I/O to a worker thread."""
+        """Run text generation off the event loop (SDK calls are blocking)."""
         return await asyncio.to_thread(self.generate_text, prompt, temperature)

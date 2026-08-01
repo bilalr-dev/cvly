@@ -5,6 +5,7 @@ import hashlib
 import re
 
 from backend.models.job import RawJobPosting
+from backend.utils.constants import TRUNCATED_DESCRIPTION_MAX_CHARS
 
 
 def is_truncated(text: str) -> bool:
@@ -12,7 +13,11 @@ def is_truncated(text: str) -> bool:
     if not text:
         return True
     stripped = text.rstrip()
-    return stripped.endswith("…") or stripped.endswith("...") or len(text) < 400
+    return (
+        stripped.endswith("…")
+        or stripped.endswith("...")
+        or len(text) < TRUNCATED_DESCRIPTION_MAX_CHARS
+    )
 
 
 _COMPANY_SUFFIX_RE = re.compile(r"\b(sas|sarl|sa|ltd|inc|gmbh|s\.a\.|s\.a\.r\.l\.)(?=\s|$)", re.IGNORECASE)
@@ -37,30 +42,32 @@ def generate_posting_id(title: str, company: str, location: str) -> str:
     raw = f"{title}{company}{location}".encode()
     return hashlib.sha256(raw).hexdigest()
 
+def _posting_key(p: RawJobPosting) -> tuple:
+    """Return the deduplication key for a posting."""
+    city = _extract_city(getattr(p, "location", ""))
+    norm_company = normalize_company(p.company)
+    norm_title = normalize_title(p.title)
+    # Fall back to URL/ID when metadata is absent to avoid over-merging.
+    if not norm_company.strip() and not city.strip():
+        return (p.url or p.id,)
+    return (norm_company, norm_title, city)
+
+
+def _description_len(p: RawJobPosting) -> int:
+    """Return the byte length of the posting description, or 0 if absent."""
+    text = getattr(p, "description_text", None)
+    return len(text) if text else 0
+
+
 def deduplicate_postings(postings: list[RawJobPosting]) -> list[RawJobPosting]:
     if not postings:
         return []
 
     seen: dict[tuple, RawJobPosting] = {}
     for p in postings:
-        city = _extract_city(getattr(p, "location", ""))
-        norm_company = normalize_company(p.company)
-        norm_title = normalize_title(p.title)
-
-        # Prevent collapsing when source provides no company/location metadata
-        if not norm_company.strip() and not city.strip():
-            # Use URL or ID as unique fallback key
-            key = (p.url or p.id,)
-        else:
-            key = (norm_company, norm_title, city)
-
-        if key in seen:
-            existing = seen[key]
-            len_existing = len(existing.description_text) if getattr(existing, "description_text", None) else 0
-            len_new = len(p.description_text) if getattr(p, "description_text", None) else 0
-            if len_new > len_existing:
-                seen[key] = p
-        else:
+        key = _posting_key(p)
+        existing = seen.get(key)
+        if existing is None or _description_len(p) > _description_len(existing):
             seen[key] = p
 
     return list(seen.values())

@@ -157,7 +157,7 @@ async def reset_resume(request: Request) -> HTMLResponse:
     delete_resume_profile()
     t = get_translations()
     return HTMLResponse(
-        content=f'''
+        content=f"""
         <label id="upload-zone" class="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-300 rounded-xl p-9 cursor-pointer text-slate-500 hover:bg-slate-50 transition-colors">
             <input type="file" accept=".pdf,.docx"
                    hx-post="/settings/upload"
@@ -173,9 +173,37 @@ async def reset_resume(request: Request) -> HTMLResponse:
         <form id="resume-form" class="hidden">
              <button id="hidden-upload-btn" type="submit" hx-post="/settings/upload" hx-encoding="multipart/form-data" hx-target="#upload-feedback" hx-swap="innerHTML" class="hidden"></button>
         </form>
-        ''',
+        """,
         status_code=200,
     )
+
+
+def _parse_radius_field(raw_radius: Any) -> float:
+    """Coerce a raw radius value to a non-negative float."""
+    if raw_radius is None or str(raw_radius).strip() == "":
+        return 0.0
+    try:
+        return max(0.0, float(str(raw_radius).replace(",", ".")))
+    except ValueError:
+        return 0.0
+
+
+async def _build_data_from_form(request: Request) -> dict:
+    """Parse multipart form body into a preferences dict."""
+    form = await request.form()
+    titles_raw = form.get("titles") or ""
+    titles = [t.strip() for t in titles_raw.split(",") if t.strip()] if titles_raw else []
+    settings = get_app_settings()
+    return {
+        "titles": titles,
+        "location": form.get("location") or "",
+        "radius_km": _parse_radius_field(form.get("radius_km")),
+        "remote_ok": form.get("remote_ok") == "on",
+        "seniority": form.getlist("seniority"),
+        "contract": form.getlist("contract"),
+        "exclude_keywords": form.get("exclude_keywords") or "",
+        "language": form.get("language") or settings.default_language,
+    }
 
 
 @router.post("/preferences", responses=_RESPONSES_400)
@@ -185,30 +213,7 @@ async def post_save_preferences(request: Request) -> Any:
     if "application/json" in content_type:
         data = await request.json()
     else:
-        form = await request.form()
-        titles_raw = form.get("titles") or ""
-        titles = [t.strip() for t in titles_raw.split(",") if t.strip()] if titles_raw else []
-
-        raw_radius = form.get("radius_km")
-        if raw_radius is None or str(raw_radius).strip() == "":
-            parsed_radius = 0.0
-        else:
-            try:
-                parsed_radius = max(0.0, float(str(raw_radius).replace(",", ".")))
-            except ValueError:
-                parsed_radius = 0.0
-
-        settings = get_app_settings()
-        data = {
-            "titles": titles,
-            "location": form.get("location") or "",
-            "radius_km": parsed_radius,
-            "remote_ok": form.get("remote_ok") == "on",
-            "seniority": form.getlist("seniority"),
-            "contract": form.getlist("contract"),
-            "exclude_keywords": form.get("exclude_keywords") or "",
-            "language": form.get("language") or settings.default_language,
-        }
+        data = await _build_data_from_form(request)
 
     if "titles" not in data or not data["titles"]:
         logger.warning("Preferences save failed: Missing titles")

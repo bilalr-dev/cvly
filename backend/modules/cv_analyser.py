@@ -37,54 +37,63 @@ def calculate_years(entries: Any) -> float:
             total += (end_y - start_y)
     return total
 
+def _strings_from_lists(*lists: Any) -> set[str]:
+    """Collect lowercase strings from multiple attribute lists, skipping non-lists."""
+    result: set[str] = set()
+    for lst in lists:
+        if isinstance(lst, list):
+            for s in lst:
+                if isinstance(s, str):
+                    result.add(s.lower())
+    return result
+
+
+def _collect_resume_skills(resume: Any) -> set[str]:
+    """Extract lowercase skill strings from technical/tools/certifications."""
+    skills_obj = getattr(resume, "skills", None)
+    if not skills_obj:
+        return set()
+    return _strings_from_lists(
+        getattr(skills_obj, "technical", []),
+        getattr(skills_obj, "tools", []),
+        getattr(skills_obj, "certifications", []),
+    )
+
+
+def _expand_with_aliases(resume_skills: set[str], alias_map: dict[str, list[str]]) -> set[str]:
+    """Expand a skill set by adding canonical and alias forms from alias_map."""
+    expanded = set(resume_skills)
+    for canonical, aliases in alias_map.items():
+        canonical_lower = canonical.lower()
+        aliases_lower = [a.lower() for a in aliases if isinstance(a, str)]
+        if canonical_lower in resume_skills or any(a in resume_skills for a in aliases_lower):
+            expanded.add(canonical_lower)
+            expanded.update(aliases_lower)
+    return expanded
+
+
+def _collect_required_skills(jd: Any) -> set[str]:
+    """Extract lowercase required skill strings from a parsed job description."""
+    return _strings_from_lists(
+        getattr(jd, "required_skills", []),
+        getattr(jd, "required_tools", []),
+        getattr(jd, "required_certifications", []),
+    )
+
+
 def compute_keyword_score(
     resume: Any,
     jd: Any,
     alias_map: dict[str, list[str]]
 ) -> tuple[list[str], list[str], float]:
 
-    resume_skills = set()
-    skills_obj = getattr(resume, "skills", None)
-    if skills_obj:
-        tech = getattr(skills_obj, "technical", [])
-        tools = getattr(skills_obj, "tools", [])
-        certs = getattr(skills_obj, "certifications", [])
+    resume_skills = _collect_resume_skills(resume)
+    expanded = _expand_with_aliases(resume_skills, alias_map)
+    required = _collect_required_skills(jd)
 
-        for lst in (tech, tools, certs):
-            if isinstance(lst, list):
-                for s in lst:
-                    if isinstance(s, str):
-                        resume_skills.add(s.lower())
-
-    expanded_resume_skills = set(resume_skills)
-    for canonical, aliases in alias_map.items():
-        canonical = canonical.lower()
-        aliases = [a.lower() for a in aliases if isinstance(a, str)]
-        if canonical in resume_skills or any((a in resume_skills) for a in aliases):
-            expanded_resume_skills.add(canonical)
-            expanded_resume_skills.update(aliases)
-
-    required_skills = set()
-    req_skills = getattr(jd, "required_skills", [])
-    req_tools = getattr(jd, "required_tools", [])
-    req_certs = getattr(jd, "required_certifications", [])
-
-    for lst in (req_skills, req_tools, req_certs):
-        if isinstance(lst, list):
-            for s in lst:
-                if isinstance(s, str):
-                    required_skills.add(s.lower())
-
-    matched = []
-    missing = []
-
-    for req in required_skills:
-        if req in expanded_resume_skills:
-            matched.append(req)
-        else:
-            missing.append(req)
-
-    pct = 1.0 if not required_skills else len(matched) / len(required_skills)
+    matched = [r for r in required if r in expanded]
+    missing = [r for r in required if r not in expanded]
+    pct = 1.0 if not required else len(matched) / len(required)
 
     return matched, missing, pct
 
@@ -126,6 +135,29 @@ def compute_match_score(
 
     return score * 100.0
 
+def _build_resume_text(resume: Any) -> str:
+    """Concatenate resume summary and all experience bullets into one string."""
+    parts: list[str] = []
+    summary = getattr(resume, "summary", None)
+    if isinstance(summary, str):
+        parts.append(summary)
+    for exp in (getattr(resume, "experience", []) or []):
+        bullets = getattr(exp, "bullets", [])
+        if isinstance(bullets, list):
+            parts.extend(b for b in bullets if isinstance(b, str))
+    return " ".join(parts)
+
+
+def _build_jd_text(jd: Any) -> str:
+    """Concatenate key responsibilities and required skills into one string."""
+    parts: list[str] = []
+    for attr in ("key_responsibilities", "required_skills"):
+        lst = getattr(jd, attr, [])
+        if isinstance(lst, list):
+            parts.extend(s for s in lst if isinstance(s, str))
+    return " ".join(parts)
+
+
 async def analyse_cv(
     resume: Any,
     jd: Any,
@@ -135,30 +167,8 @@ async def analyse_cv(
     """Quantifies deterministic keyword extraction scoring rules against strict algorithmic profiles."""
     matched_k, missing_k, keyword_pct = compute_keyword_score(resume, jd, alias_map)
 
-    resume_parts = []
-    summary = getattr(resume, "summary", None)
-    if isinstance(summary, str):
-        resume_parts.append(summary)
-
-    exps = getattr(resume, "experience", [])
-    if isinstance(exps, list):
-        for exp in exps:
-            bullets = getattr(exp, "bullets", [])
-            if isinstance(bullets, list):
-                resume_parts.extend([b for b in bullets if isinstance(b, str)])
-
-    resume_text = " ".join(resume_parts)
-
-    jd_parts = []
-    key_resp = getattr(jd, "key_responsibilities", [])
-    if isinstance(key_resp, list):
-        jd_parts.extend([r for r in key_resp if isinstance(r, str)])
-
-    req_skills = getattr(jd, "required_skills", [])
-    if isinstance(req_skills, list):
-        jd_parts.extend([s for s in req_skills if isinstance(s, str)])
-
-    jd_text = " ".join(jd_parts)
+    resume_text = _build_resume_text(resume)
+    jd_text = _build_jd_text(jd)
 
     try:
         r_embed, j_embed = await asyncio.gather(
@@ -175,9 +185,7 @@ async def analyse_cv(
     if not isinstance(profile_type, str):
         profile_type = "experienced"
 
-    contract_type = getattr(jd, "contract_type", None)
-
-    overall = compute_match_score(keyword_pct, sem_score, exp_score, profile_type, contract_type)
+    overall = compute_match_score(keyword_pct, sem_score, exp_score, profile_type, getattr(jd, "contract_type", None))
 
     return MatchResult(
         atf_analysis=None,

@@ -1,8 +1,12 @@
-"""Groq LLM service - OpenAI-compatible endpoint for Llama 3.3 70B.
+"""Groq LLM client for the critical-evaluation (checker) path.
 
-Used exclusively as the critical evaluator (checker role).
-Free tier: 30 RPM, 14,400 req/day, no credit card.
-Ref: Grounded Optimization L5 - generator and critic must be different models.
+OpenAI-compatible HTTP API. Keep this model distinct from Gemini so maker
+and checker don't share the same failure modes.
+
+Free tier: ~30 RPM / 14,400 req/day. Default model is llama-3.1-8b-instant
+to stay inside free-tier token limits.
+
+Ref: Grounded Optimization L5.
 """
 from __future__ import annotations
 
@@ -14,6 +18,7 @@ import aiohttp
 
 from backend.services.rate_limiter import AsyncRateLimiter
 from backend.utils.constants import (
+    GROQ_DEFAULT_MODEL,
     GROQ_ERROR_BODY_CHARS,
     GROQ_MAX_TOKENS,
     GROQ_RATE_LIMIT_CALLS,
@@ -25,7 +30,6 @@ from backend.utils.constants import (
 logger = logging.getLogger(__name__)
 
 _GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-_DEFAULT_MODEL = "llama-3.3-70b-versatile"
 
 
 class GroqAPIError(Exception):
@@ -35,9 +39,11 @@ class GroqAPIError(Exception):
 class GroqLLMService:
     """Groq LLM service using the OpenAI-compatible API."""
 
-    def __init__(self, api_key: str, model: str = _DEFAULT_MODEL) -> None:
+    def __init__(self, api_key: str, model: str | None = None) -> None:
+        from backend.config import get_settings
+
         self.api_key = api_key
-        self.model = model
+        self.model = model or get_settings().groq_model or GROQ_DEFAULT_MODEL
         # Stay under the free-tier 30 RPM ceiling with a small buffer
         self._rate_limiter = AsyncRateLimiter(
             max_calls=GROQ_RATE_LIMIT_CALLS,
@@ -70,7 +76,7 @@ class GroqLLMService:
 
         timeout = aiohttp.ClientTimeout(total=GROQ_TIMEOUT_SECONDS)
         try:
-            # Nested (not combined) async with - avoids aiohttp SSL cleanup races
+            # Separate with blocks: combined ones race on aiohttp SSL cleanup
             async with aiohttp.ClientSession(timeout=timeout) as session:  # noqa: SIM117
                 async with session.post(
                     _GROQ_API_URL, headers=headers, json=payload

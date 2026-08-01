@@ -140,7 +140,7 @@ function setStatusFilter(status, el) {
 
 function applyFilters() {
     document.querySelectorAll('tbody tr[data-score]').forEach(row => {
-        const score = parseInt(row.dataset.score || '0');
+        const score = Number.parseInt(row.dataset.score || '0', 10);
         const isSaved = row.dataset.saved === 'true';
 
         let show = true;

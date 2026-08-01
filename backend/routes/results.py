@@ -17,43 +17,58 @@ router = APIRouter(prefix="/results")
 
 _RESPONSES_404 = {404: {"description": "Job not found"}}
 
+
+def _build_atf_dict(atf: Any) -> dict[str, Any] | None:
+    """Serialize an ATF analysis object for template consumption."""
+    if not atf:
+        return None
+    return {
+        "summary": getattr(atf, "summary", ""),
+        "seniority": getattr(atf, "seniority", ""),
+        "recommendation": getattr(atf, "recommendation", ""),
+        "strengths": list(getattr(atf, "strengths", [])),
+        "weaknesses": list(getattr(atf, "weaknesses", [])),
+        "risks": list(getattr(atf, "risks", [])),
+    }
+
+
+def _resolve_matched_keywords(match: Any, atf: Any) -> list[str]:
+    """Return matched keywords, falling back to ATF skills when the list is empty."""
+    matched = list(getattr(match, "matched_keywords", [])) if match else []
+    if not matched and atf and hasattr(atf, "skills"):
+        return list(getattr(atf, "skills", []))
+    return matched
+
+
+def _build_job_dict(posting: Any, match: Any) -> dict[str, Any]:
+    """Build the display dict for a single posting and its match result."""
+    atf = getattr(match, "atf_analysis", None) if match else None
+    return {
+        "id": posting.id,
+        "company": posting.company,
+        "title": posting.title,
+        "location": posting.location,
+        "contract": getattr(posting, "contract_type", "") or "",
+        "url": posting.url,
+        "date_posted": getattr(posting, "date_posted", "") or "",
+        "source": posting.source,
+        "score": round(getattr(match, "overall_score", 0)) if match else 0,
+        "has_atf": bool(atf),
+        "description_text": posting.description_text,
+        "matched_keywords": _resolve_matched_keywords(match, atf),
+        "missing_keywords": list(getattr(match, "missing_keywords", [])) if match else [],
+        "atf": _build_atf_dict(atf),
+    }
+
+
 def get_job_by_id(job_id: str) -> dict[str, Any] | None:
     jobs = app_state.get("pipeline_results", [])
     match_results = app_state.get("match_results", {})
     for posting in jobs:
-        if posting.id == job_id:
-            match = match_results.get(posting.id)
-            atf = getattr(match, "atf_analysis", None) if match else None
-
-            matched_kw = list(getattr(match, "matched_keywords", [])) if match else []
-            missing_kw = list(getattr(match, "missing_keywords", [])) if match else []
-
-            if not matched_kw and atf and hasattr(atf, "skills"):
-                matched_kw = list(getattr(atf, "skills", []))
-
-            return {
-                "id": posting.id,
-                "company": posting.company,
-                "title": posting.title,
-                "location": posting.location,
-                "contract": getattr(posting, "contract_type", "") or "",
-                "url": posting.url,
-                "date_posted": getattr(posting, "date_posted", "") or "",
-                "source": posting.source,
-                "score": round(getattr(match, "overall_score", 0)) if match else 0,
-                "has_atf": bool(atf),
-                "description_text": posting.description_text,
-                "matched_keywords": matched_kw,
-                "missing_keywords": missing_kw,
-                "atf": {
-                    "summary": getattr(atf, "summary", ""),
-                    "seniority": getattr(atf, "seniority", ""),
-                    "recommendation": getattr(atf, "recommendation", ""),
-                    "strengths": list(getattr(atf, "strengths", [])),
-                    "weaknesses": list(getattr(atf, "weaknesses", [])),
-                    "risks": list(getattr(atf, "risks", [])),
-                } if atf else None,
-            }
+        if posting.id != job_id:
+            continue
+        match = match_results.get(posting.id)
+        return _build_job_dict(posting, match)
     return None
 
 @router.get("", response_class=HTMLResponse)
@@ -68,36 +83,7 @@ async def get_results(request: Request) -> HTMLResponse:
         if posting.id in skipped:
             continue
         match = match_results.get(posting.id)
-        atf = getattr(match, "atf_analysis", None) if match else None
-
-        matched_kw = list(getattr(match, "matched_keywords", [])) if match else []
-        missing_kw = list(getattr(match, "missing_keywords", [])) if match else []
-
-        if not matched_kw and atf and hasattr(atf, "skills"):
-            matched_kw = list(getattr(atf, "skills", []))
-
-        jobs_display.append({
-            "id": posting.id,
-            "company": posting.company,
-            "title": posting.title,
-            "location": posting.location,
-            "contract": getattr(posting, "contract_type", "") or "",
-            "url": posting.url,
-            "date_posted": getattr(posting, "date_posted", "") or "",
-            "source": posting.source,
-            "score": round(getattr(match, "overall_score", 0)) if match else 0,
-            "has_atf": bool(atf),
-            "matched_keywords": matched_kw,
-            "missing_keywords": missing_kw,
-            "atf": {
-                "summary": getattr(atf, "summary", ""),
-                "seniority": getattr(atf, "seniority", ""),
-                "recommendation": getattr(atf, "recommendation", ""),
-                "strengths": list(getattr(atf, "strengths", [])),
-                "weaknesses": list(getattr(atf, "weaknesses", [])),
-                "risks": list(getattr(atf, "risks", [])),
-            } if atf else None,
-        })
+        jobs_display.append(_build_job_dict(posting, match))
 
     jobs_display.sort(key=lambda j: j["score"], reverse=True)
 

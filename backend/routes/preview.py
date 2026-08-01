@@ -27,14 +27,15 @@ from backend.services.gemini_llm import GeminiAPIError, GeminiLLMService
 from backend.state import app_state, get_translations, save_pipeline_data, templates
 from backend.utils.constants import (
     CRITICAL_REVIEW_ACHIEVEMENT_LIMIT,
-    JOB_NOT_FOUND_DETAIL,
-    PREVIEW_TEMPLATE,
-    TRANSLATION_CONTENT_PLACEHOLDER,
-    TRANSLATION_TARGET_LANGUAGE_PLACEHOLDER,
     FRENCH_DETECTION_WORDS,
+    FRENCH_DETECTION_MIN_HITS,
+    JOB_NOT_FOUND_DETAIL,
     MAX_KEYWORD_INJECTION_WORDS,
     MIN_BULLET_LENGTH,
+    PREVIEW_TEMPLATE,
     SEVERITY_LABELS,
+    TRANSLATION_CONTENT_PLACEHOLDER,
+    TRANSLATION_TARGET_LANGUAGE_PLACEHOLDER,
     VIOLATION_LABELS,
 )
 
@@ -475,7 +476,7 @@ def _detect_resume_language(resume: Any) -> str:
     ) + " "
 
     french_hits = sum(1 for fw in FRENCH_DETECTION_WORDS if fw in all_bullets.lower())
-    return "fr" if french_hits >= 2 else "en"
+    return "fr" if french_hits >= FRENCH_DETECTION_MIN_HITS else "en"
 
 
 def _build_tailored_data(tailored_output: Any, cover_letter_text: str, warnings: list[dict]) -> dict:
@@ -649,6 +650,8 @@ async def _track_in_sheets(
         return
 
     try:
+        import gspread
+
         from backend.models.job import ParsedJobDescription
         from backend.modules.sheets_tracker import SheetsTracker
 
@@ -671,7 +674,7 @@ async def _track_in_sheets(
                 )
 
         await asyncio.to_thread(_append)
-    except Exception as e:
+    except (gspread.exceptions.GSpreadException, OSError, ValueError, KeyError, TypeError) as e:
         logger.warning("Google Sheets tracking failed: %s", e)
 
 

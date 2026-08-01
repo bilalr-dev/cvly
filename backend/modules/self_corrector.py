@@ -1,9 +1,8 @@
-"""Self-correction module — sends Groq critic feedback back to Gemini for fixes.
+"""One-shot self-correction: Groq reviews Gemini output, Gemini fixes flagged issues.
 
-Implements one correction round: Gemini generates → Groq reviews → Gemini corrects.
-Only issues persisting after correction reach the user.
+Only issues that survive that pass are shown to the user.
 
-Ref: MA-CF (Xie et al., 2026) — decouple critic from generator, loop once
+Ref: MA-CF (Xie et al., 2026). Critic and generator stay on different models.
 """
 from __future__ import annotations
 
@@ -73,13 +72,13 @@ async def correct_bullets(
     try:
         result = await gemini_service.agenerate_text(prompt, temperature=0.2)
     except (GeminiAPIError, RuntimeError, ValueError) as e:
-        logger.debug("Bullet correction failed: %s — keeping original rewrite", e)
+        logger.debug("Bullet correction failed (%s); keeping original rewrite", e)
         return rewritten_bullets
 
     parsed = _parse_corrected_bullets(result, len(rewritten_bullets))
     if parsed is not None:
         return parsed
-    logger.debug("Bullet correction parse failed — keeping original rewrite")
+    logger.debug("Bullet correction parse failed; keeping original rewrite")
     return rewritten_bullets
 
 
@@ -103,7 +102,7 @@ async def correct_cover_letter(
     try:
         result = await gemini_service.agenerate_text(prompt, temperature=0.3)
     except (GeminiAPIError, RuntimeError, ValueError) as e:
-        logger.debug("Cover letter correction failed: %s — keeping original", e)
+        logger.debug("Cover letter correction failed (%s); keeping original", e)
         return cover_letter
 
     if len(result.strip()) > MIN_CORRECTED_COVER_LENGTH:

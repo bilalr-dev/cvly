@@ -116,7 +116,7 @@ TASK: Extract all structured information from the following job posting into the
 
 EXTRACTION RULES:
 - Normalize skill names in the "skills" list to their canonical English form (e.g., "React.js" → "React", "Gestion de projet" → "Project Management").
-- Keep "ats_keywords" in the ORIGINAL language of the posting — these are used for exact ATS matching.
+- Keep "ats_keywords" in the ORIGINAL language of the posting - these are used for exact ATS matching.
 - "ats_keywords" MUST be a single flat array of strings. Do NOT nest objects or dictionaries inside it.
 - For min_years_experience: extract only if explicitly stated. Set to 0 if "junior", "intern", or "débutant accepté". If "senior" or "5+ ans", extract the integer.
 - For language_of_posting: detect the dominant language of the description text and output ONLY the two-letter ISO code ("fr" or "en").
@@ -204,7 +204,7 @@ Perform the analysis and return ONLY valid JSON matching this exact structure:
 #   - temperature 0.3
 # ──────────────────────────────────────────────────────────────────────────────
 # Stage 1 - keyword classification (temperature 0.0, no rewriting)
-KEYWORD_ANALYSIS_PROMPT: str = """You are a keyword relevance analyst. Your task is to classify each candidate keyword against the candidate's actual CV content. This is classification only — do not rewrite or generate any bullet text.
+KEYWORD_ANALYSIS_PROMPT: str = """You are a keyword relevance analyst. Your task is to classify each candidate keyword against the candidate's actual CV content. This is classification only - do not rewrite or generate any bullet text.
 
 TASK:
 For each keyword in the MISSING KEYWORDS list below, determine whether the candidate's CV provides truthful evidence that they possess this skill, tool, or competency.
@@ -238,12 +238,12 @@ Return ONLY valid JSON matching this structure:
 }}"""
 
 # Stage 2 - bullet rewriting with validated keywords (temperature 0.2)
-BULLET_REWRITE_PROMPT: str = """You are a senior professional resume writer specialized in ATS optimization for the {country} job market. You write resumes that win interviews — not marketing copy.
+BULLET_REWRITE_PROMPT: str = """You are a senior professional resume writer specialized in ATS optimization for the {country} job market. You write resumes that win interviews - not marketing copy.
 
 CORE FORMULA (Harvard Career Services):
 Every bullet = [Strong past-tense action verb] + [what you did / scope] + [quantified result or impact]
 
-LANGUAGE RULE — CRITICAL:
+LANGUAGE RULE - CRITICAL:
 Output language is {language}. Every single bullet MUST be written entirely in {language}. Translate any existing bullet while preserving its metrics, technical terms, and meaning.
 
 ACTION VERBS:
@@ -254,7 +254,7 @@ RULES (non-negotiable):
 - Start EVERY bullet with a strong action verb in past tense. NEVER start with "I", "My", "Was responsible for", "Helped", "Assisted", or "Worked on".
 - Preserve existing metrics from the original exactly. If the original bullet contains no numbers, percentages, or quantified results, do NOT add any. Never fabricate metrics.
 - Incorporate missing keywords ONLY where they TRUTHFULLY apply to existing experience: {missing_keywords}
-- If a keyword cannot be incorporated honestly, list it in "unfillable_gaps" — do not force or fabricate it.
+- If a keyword cannot be incorporated honestly, list it in "unfillable_gaps" - do not force or fabricate it.
 - HALLUCINATION PREVENTION: Single or double-letter technology names (R, C, Go, C#) must ONLY be included if they appear VERBATIM in the original CV or skills list.
 - HALLUCINATION PREVENTION: Do not infer React Native from React, or SQL from PostgreSQL. Only output explicitly stated tools.
 - Maximum 4 bullets per role.
@@ -273,7 +273,7 @@ ASSOCIATIONS & EXTRACURRICULARS (student profiles):
 {associations}
 </SOURCE_OF_TRUTH>
 
-<TARGET_JOB_CONTEXT — FOR KEYWORD ALIGNMENT ONLY, DO NOT ATTRIBUTE TO CANDIDATE>
+<TARGET_JOB_CONTEXT - FOR KEYWORD ALIGNMENT ONLY, DO NOT ATTRIBUTE TO CANDIDATE>
 TARGET JOB KEY RESPONSIBILITIES:
 {key_responsibilities}
 
@@ -304,16 +304,16 @@ COVER_LETTER_PROMPT: str = """You are an expert cover letter writer for the {cou
 
 RECRUITER REALITY:
 - Recruiters spot AI filler immediately: "passionate", "excited", "dynamic", "proven track record", "strong communicator", "team player", "detail-oriented", "results-driven". These are automatic red flags.
-- The letter complements the CV — it does not repeat it word-for-word.
+- The letter complements the CV - it does not repeat it word-for-word.
 CRITICAL: Do not attribute JD requirements or the target company's activities to the candidate's past experience. The candidate does NOT work at {target_company} yet. Do not claim the candidate has done things described in the job description unless those achievements appear in the candidate's CV.
 
 WORDS AND PHRASES TO NEVER USE:
 passionate, excited, dynamic, proven track record, results-driven, team player, detail-oriented, motivated individual, strong communicator, fast learner, go-getter, highly motivated, within the attainment of, having taken note of your offer, fort de mon expérience, hautement motivé, ayant pris connaissance de votre offre.
 
-STRUCTURE (3 paragraphs, approximately 200–300 words total):
-- Paragraph 1 — HOOK: Open with {target_company}'s priority or business challenge. Do NOT use generic openings like "I am writing to apply for..." or "Ayant pris connaissance de votre offre...".
-- Paragraph 2 — PROOF: Present 2-3 concrete achievements from the candidate's background that directly map to the role's top requirements using real metrics.
-- Paragraph 3 — CLOSE: Express specific curiosity about the company's domain, provide availability details, and close professionally.
+STRUCTURE (3 paragraphs, approximately 200-300 words total):
+- Paragraph 1 - HOOK: Open with {target_company}'s priority or business challenge. Do NOT use generic openings like "I am writing to apply for..." or "Ayant pris connaissance de votre offre...".
+- Paragraph 2 - PROOF: Present 2-3 concrete achievements from the candidate's background that directly map to the role's top requirements using real metrics.
+- Paragraph 3 - CLOSE: Express specific curiosity about the company's domain, provide availability details, and close professionally.
 - Sign with the candidate's full name: {candidate_name}. Do NOT use placeholder text like "[Your Name]" or "[Votre nom]".
 
 LANGUAGE AND REGISTER:
@@ -344,16 +344,16 @@ For each rewritten bullet, compare it against the corresponding original bullet.
 
 VIOLATION TYPES TO CHECK:
 
-1. fabricated_metric — A number, percentage, dollar amount, or quantified result that does not appear in the original bullet.
+1. fabricated_metric - A number, percentage, dollar amount, or quantified result that does not appear in the original bullet.
    Example: Original "Improved API performance" → Rewritten "Improved API performance by 40%" → VIOLATION (40% is fabricated)
 
-2. invented_skill — A tool, technology, framework, or skill name in the rewritten bullet that does not appear in the original bullet or the candidate's skills list.
+2. invented_skill - A tool, technology, framework, or skill name in the rewritten bullet that does not appear in the original bullet or the candidate's skills list.
    Example: Original "Built REST APIs" → Rewritten "Built REST APIs using GraphQL" → VIOLATION (GraphQL is invented)
 
-3. jd_attribution — An achievement or responsibility that appears to come from the job description rather than the candidate's actual experience.
+3. jd_attribution - An achievement or responsibility that appears to come from the job description rather than the candidate's actual experience.
    Example: If the job description mentions "managing a team of 15" and the rewritten bullet says "Managed a team of 15" but the original says nothing about team management → VIOLATION
 
-4. scope_inflation — The rewritten bullet significantly inflates the candidate's role, title, or scope beyond what the original states.
+4. scope_inflation - The rewritten bullet significantly inflates the candidate's role, title, or scope beyond what the original states.
    Example: Original "Contributed to frontend development" → Rewritten "Led the frontend architecture redesign" → VIOLATION (scope inflated from contributor to lead)
 
 COMPARISON RULES:
@@ -414,10 +414,10 @@ CRITICAL_REVIEW_BULLETS_PROMPT: str = """Review these rewritten CV bullets for f
 For each rewritten bullet, compare it against the corresponding original. Flag ANY claim that is not supported by the original.
 
 CHECK FOR:
-1. FABRICATED METRICS — numbers, percentages, or quantities not in the original
-2. INVENTED SKILLS/TOOLS — technologies or tools not mentioned in the original
-3. SCOPE INFLATION — role described as bigger than the original states (e.g., "contributed" → "led")
-4. JD ATTRIBUTION — achievements that appear to come from the job description, not the candidate's history
+1. FABRICATED METRICS - numbers, percentages, or quantities not in the original
+2. INVENTED SKILLS/TOOLS - technologies or tools not mentioned in the original
+3. SCOPE INFLATION - role described as bigger than the original states (e.g., "contributed" → "led")
+4. JD ATTRIBUTION - achievements that appear to come from the job description, not the candidate's history
 
 ORIGINAL BULLETS:
 {original_bullets}
@@ -450,10 +450,10 @@ Return JSON:
 CRITICAL_REVIEW_COVER_LETTER_PROMPT: str = """Review this cover letter for factual accuracy against the candidate's actual background.
 
 CHECK FOR:
-1. ENTITY BLEED — does the letter claim the candidate already works at {target_company}?
-2. HALLUCINATED ACHIEVEMENTS — are there claims not supported by the candidate's summary or achievements list?
-3. JD PARROTING — does the letter copy phrases from the job description as if they are the candidate's experience?
-4. TONE MISMATCH — does the language/register match the target market?
+1. ENTITY BLEED - does the letter claim the candidate already works at {target_company}?
+2. HALLUCINATED ACHIEVEMENTS - are there claims not supported by the candidate's summary or achievements list?
+3. JD PARROTING - does the letter copy phrases from the job description as if they are the candidate's experience?
+4. TONE MISMATCH - does the language/register match the target market?
 
 COVER LETTER:
 {cover_letter}
@@ -489,10 +489,10 @@ Return JSON:
 CRITICAL_REVIEW_CV_PROMPT: str = """Review this tailored CV for structural integrity and language consistency.
 
 CHECK FOR:
-1. LANGUAGE MIXING — is the entire document in {target_language}? Flag any sentences in the wrong language.
-2. UNTRANSLATED SECTIONS — are all section headings, bullet points, and descriptions translated?
-3. STRUCTURAL GAPS — are there empty sections, missing dates, or broken formatting?
-4. DUPLICATE CONTENT — are any bullets repeated across different roles?
+1. LANGUAGE MIXING - is the entire document in {target_language}? Flag any sentences in the wrong language.
+2. UNTRANSLATED SECTIONS - are all section headings, bullet points, and descriptions translated?
+3. STRUCTURAL GAPS - are there empty sections, missing dates, or broken formatting?
+4. DUPLICATE CONTENT - are any bullets repeated across different roles?
 
 TAILORED CV (Markdown):
 {cv_markdown}
@@ -521,11 +521,11 @@ Return JSON:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# CORRECTION — Gemini self-correction based on Groq critic feedback
-# Ref: MA-CF (Xie et al., 2026) — generator corrects based on critic feedback
+# Gemini re-writes after Groq flags problems
+# Ref: MA-CF (Xie et al., 2026)
 # ──────────────────────────────────────────────────────────────────────────────
 
-BULLET_CORRECTION_PROMPT: str = """You previously rewrote CV bullets for ATS optimization. An independent reviewer found issues with your output. Fix ONLY the flagged issues — do not change bullets that were not flagged.
+BULLET_CORRECTION_PROMPT: str = """You previously rewrote CV bullets for ATS optimization. An independent reviewer found issues with your output. Fix ONLY the flagged issues - do not change bullets that were not flagged.
 
 RULES:
 - Fix each flagged bullet according to the reviewer's feedback
@@ -546,7 +546,7 @@ Return the corrected bullets in the same JSON format as before.
 Write all content in {language}."""
 
 
-COVER_LETTER_CORRECTION_PROMPT: str = """You previously wrote a cover letter. An independent reviewer found issues. Fix ONLY the flagged issues — preserve everything else.
+COVER_LETTER_CORRECTION_PROMPT: str = """You previously wrote a cover letter. An independent reviewer found issues. Fix ONLY the flagged issues - preserve everything else.
 
 RULES:
 - Fix each issue according to the reviewer's feedback
@@ -577,7 +577,7 @@ Write entirely in {language}."""
 # ──────────────────────────────────────────────────────────────────────────────
 TRANSLATION_PROMPT: str = """# TRANSLATION BRIEF
 
-You are translating professional CV/resume content for the {target_language} job market. The audience is recruiters and ATS systems. The output must read as if originally written by a native speaker — not as a translation.
+You are translating professional CV/resume content for the {target_language} job market. The audience is recruiters and ATS systems. The output must read as if originally written by a native speaker - not as a translation.
 
 ## DOCUMENT CONTEXT
 - Document type: CV / resume (professional experience bullets, summary, skills, education)
@@ -593,9 +593,9 @@ You are translating professional CV/resume content for the {target_language} job
 ## DO NOT TRANSLATE (preserve exactly as-is)
 - Technical tool names: React, Docker, AWS, PostgreSQL, NestJS, Git, CI/CD, Kubernetes, Python, TypeScript, Node.js, etc.
 - Company names, proper nouns, brand names
-- Institution names and école names (e.g., "École Polytechnique", "HEC Paris", "ENSAE" — keep original)
+- Institution names and école names (e.g., "École Polytechnique", "HEC Paris", "ENSAE" - keep original)
 - URLs, email addresses, phone numbers, dates
-- CEFR language levels (A1–C2, Native)
+- CEFR language levels (A1-C2, Native)
 
 ## FRENCH-SPECIFIC INSTRUCTIONS
 When translating to French, follow these rules to avoid translationese:
@@ -637,3 +637,28 @@ Output only the translated text. No explanations, no notes, no preamble.
 Content to translate:
 {content}
 """
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Map free-text job titles to French ROME codes
+# ──────────────────────────────────────────────────────────────────────────────
+
+ROME_CODE_LOOKUP_PROMPT: str = """You are an expert in the French ROME occupational classification system (Répertoire Opérationnel des Métiers et des Emplois).
+
+Given the following job title(s), return the most relevant ROME codes.
+
+RULES:
+- Return between 1 and 5 ROME codes, ordered by relevance
+- Use only real ROME codes (format: one letter + four digits, e.g., M1805)
+- If the title is in English, find the French equivalent first
+- If unsure, return the broader category code
+
+Job title(s): {titles}
+
+Return ONLY valid JSON:
+{{
+  "rome_codes": ["M1805", "M1810"],
+  "mapping": {{
+    "M1805": "Études et développement informatique",
+    "M1810": "Production et exploitation de systèmes d'information"
+  }}
+}}"""

@@ -19,6 +19,7 @@ if set(get_args(SeniorityLevel)) != set(SUPPORTED_SENIORITY_LEVELS):
 
 class ATFAnalysis(BaseModel):
     """Deep analysis of how well a candidate fits a job opening."""
+
     model_config = ConfigDict(frozen=True)
 
     seniority: SeniorityLevel
@@ -40,6 +41,7 @@ class ATFAnalysis(BaseModel):
 
 class MatchResult(BaseModel):
     """Overall matching result between a resume and a job."""
+
     model_config = ConfigDict(frozen=True)
 
     atf_analysis: ATFAnalysis | None = None

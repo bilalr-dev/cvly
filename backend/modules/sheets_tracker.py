@@ -13,7 +13,11 @@ from backend.models import MatchResult, ParsedJobDescription, RawJobPosting
 from backend.utils.constants import (
     GOOGLE_SHEETS_SCOPES,
     SHEETS_NOT_CONNECTED_MSG,
+)
+from backend.utils.constants import (
     SHEETS_TRACKER_HEADERS as _HEADERS,
+)
+from backend.utils.constants import (
     SHEETS_TRACKER_STATUS_VALUES as STATUS_VALUES,
 )
 

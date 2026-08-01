@@ -1,5 +1,4 @@
-"""
-Hallucination checker module for detecting fabricated content in tailored output.
+"""Hallucination checker module for detecting fabricated content in tailored output.
 
 Detection layers:
 1. Tech terms: Flags any technical term (capitalized or alphanumeric) not present in the original CV.
@@ -18,6 +17,7 @@ from backend.utils.constants import (
 from backend.utils.constants import (
     HALLUCINATION_SHORT_TECH_NAMES as _SHORT_TECH_NAMES,
 )
+from backend.utils.constants import SHORT_TECH_NAME_MAX_LEN
 
 _TECH_PATTERN = re.compile(r"[.0-9]|[a-z][A-Z]")
 _MIN_METRIC_DIGITS = 2
@@ -97,7 +97,7 @@ def _check_short_tech_names(
     context_sentence: str,
 ) -> HallucinationWarning | None:
     """Check short tech names (Go, R, C#) against known terms."""
-    if len(word_clean) > 2:
+    if len(word_clean) > SHORT_TECH_NAME_MAX_LEN:
         return None
     w_low = word_clean.lower()
     if w_low in _SHORT_TECH_NAMES and w_low not in known_terms:
@@ -148,7 +148,7 @@ def _warning_for_word(
     """Return a warning for one token, or None if clean."""
     if _is_metric_token(word_clean):
         return _check_fabricated_metrics(word_clean, resume, rewritten_text)
-    if len(word_clean) <= 2:
+    if len(word_clean) <= SHORT_TECH_NAME_MAX_LEN:
         return _check_short_tech_names(word_clean, known_terms, rewritten_text)
     return _check_tech_terms(word_clean, known_terms, rewritten_text, position)
 

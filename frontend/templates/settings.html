@@ -26,7 +26,7 @@
               <div class="text-xs">{{ t.drop_zone_sub }}</div>
             </label>
             <form id="resume-form" class="hidden">
-                 <button id="hidden-upload-btn" type="submit" hx-post="/settings/upload" hx-encoding="multipart/form-data" hx-target="#upload-feedback" hx-swap="innerHTML" class="hidden"></button>
+                 <button id="hidden-upload-btn" type="submit" hx-post="/settings/upload" hx-encoding="multipart/form-data" hx-target="#upload-feedback" hx-swap="innerHTML" class="hidden" aria-label="{{ t.get('upload_resume_btn', 'Téléverser le CV') }}"></button>
             </form>
           {% endif %}
         </div>
@@ -38,11 +38,11 @@
         <form hx-post="/settings/preferences" hx-target="#pref-feedback" hx-swap="innerHTML">
             <div class="grid grid-cols-2 gap-x-6 gap-y-4 mb-5">
                 <div class="col-span-2">
-                    <label class="block text-sm font-semibold text-slate-700 mb-1.5">{{ t.field_titles }}</label>
-                    <input type="text" name="titles" value="{{ preferences.titles|join(', ') if preferences and preferences.titles else '' }}" placeholder="Software Engineer, DevOps" class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-600 outline-none" required>
+                    <label for="pref-titles" class="block text-sm font-semibold text-slate-700 mb-1.5">{{ t.field_titles }}</label>
+                    <input id="pref-titles" type="text" name="titles" value="{{ preferences.titles|join(', ') if preferences and preferences.titles else '' }}" placeholder="Software Engineer, DevOps" class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-600 outline-none" required>
                 </div>
                 <div class="relative">
-                    <label class="block text-sm font-semibold text-slate-700 mb-1.5">{{ t.field_location }}</label>
+                    <label for="location-input" class="block text-sm font-semibold text-slate-700 mb-1.5">{{ t.field_location }}</label>
                     <input type="text"
                            name="location"
                            id="location-input"
@@ -55,8 +55,8 @@
                         class="hidden absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto text-sm"></ul>
                 </div>
                 <div>
-                    <label class="block text-sm font-semibold text-slate-700 mb-1.5">{{ t.field_radius }}</label>
-                    <input type="text" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" name="radius_km" value="{{ preferences.radius_km if preferences and preferences.radius_km is not none else '' }}" oninput="this.value = this.value.replace(/[^0-9.,]/g, '')" class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-600 outline-none">
+                    <label for="pref-radius" class="block text-sm font-semibold text-slate-700 mb-1.5">{{ t.field_radius }}</label>
+                    <input id="pref-radius" type="text" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" name="radius_km" value="{{ preferences.radius_km if preferences and preferences.radius_km is not none else '' }}" oninput="this.value = this.value.replace(/[^0-9.,]/g, '')" class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-600 outline-none">
                 </div>
 
                 <div class="col-span-2 flex items-center gap-2">
@@ -65,7 +65,8 @@
                 </div>
 
                 <div>
-                    <label class="block text-sm font-semibold text-slate-700 mb-2">{{ t.field_seniority }}</label>
+                    <fieldset>
+                    <legend class="block text-sm font-semibold text-slate-700 mb-2">{{ t.field_seniority }}</legend>
                     <div class="flex flex-wrap gap-x-4 gap-y-2">
                         {% for opt in ["Stagiaire", "Alternant", "Junior", "Mid", "Senior", "Lead"] %}
                         <label class="flex items-center gap-1.5 text-sm text-slate-600 cursor-pointer">
@@ -76,10 +77,12 @@
                         </label>
                         {% endfor %}
                     </div>
+                    </fieldset>
                 </div>
 
                 <div>
-                    <label class="block text-sm font-semibold text-slate-700 mb-2">{{ t.field_contract }}</label>
+                    <fieldset>
+                    <legend class="block text-sm font-semibold text-slate-700 mb-2">{{ t.field_contract }}</legend>
                     <div class="flex flex-wrap gap-x-4 gap-y-2">
                         {% for opt in ["CDI", "CDD", "Freelance", "Stage", "Alternance (apprentissage)", "Alternance (professionnalisation)"] %}
                         <label class="flex items-center gap-1.5 text-sm text-slate-600 cursor-pointer">
@@ -90,18 +93,19 @@
                         </label>
                         {% endfor %}
                     </div>
+                    </fieldset>
                 </div>
 
                 <div class="col-span-2">
-                    <label class="block text-sm font-semibold text-slate-700 mb-1.5">{{ t.field_exclude }}</label>
-                    <input type="text" name="exclude_keywords" value="{{ preferences.exclude_keywords if preferences else '' }}" class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-600 outline-none" placeholder="PHP, Consulting">
+                    <label for="pref-exclude" class="block text-sm font-semibold text-slate-700 mb-1.5">{{ t.field_exclude }}</label>
+                    <input id="pref-exclude" type="text" name="exclude_keywords" value="{{ preferences.exclude_keywords if preferences else '' }}" class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-600 outline-none" placeholder="PHP, Consulting">
                 </div>
             </div>
 
             <div id="pref-feedback" class="mb-4 empty:hidden"></div>
 
             <div class="flex justify-start">
-                <button type="submit" class="btn-primary transition-colors">{{ t.save_prefs }}</button>
+                <button type="submit" class="btn-primary transition-colors" aria-label="{{ t.save_prefs }}">{{ t.save_prefs }}</button>
             </div>
         </form>
     </section>

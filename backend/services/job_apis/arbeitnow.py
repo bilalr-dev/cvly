@@ -13,12 +13,15 @@ from typing import Any
 import aiohttp
 
 from backend.models.job import RawJobPosting
+from backend.utils.constants import (
+    ARBEITNOW_BASE_URL,
+    HTTP_OK,
+    JOB_API_TIMEOUT_SECONDS,
+)
 from backend.utils.dedup import generate_posting_id
 from backend.utils.location_filter import filter_by_location
 
 logger = logging.getLogger(__name__)
-
-_BASE_URL = "https://www.arbeitnow.com/api/job-board-api"
 
 
 def _parse_arbeitnow_item(item: dict[str, Any]) -> RawJobPosting | None:
@@ -51,7 +54,7 @@ class ArbeitnowClient:
     """Free job board API (no key)."""
 
     def __init__(self) -> None:
-        """Stateless free API client; no credentials required."""
+        """No credentials; client is stateless."""
 
     async def search(self, preferences: Any) -> list[RawJobPosting]:
         """Search Arbeitnow for jobs matching preferences."""
@@ -71,11 +74,11 @@ class ArbeitnowClient:
         if location:
             params["location"] = location
 
-        timeout = aiohttp.ClientTimeout(total=15)
+        timeout = aiohttp.ClientTimeout(total=JOB_API_TIMEOUT_SECONDS)
         try:
             async with aiohttp.ClientSession(timeout=timeout) as session:  # noqa: SIM117
-                async with session.get(_BASE_URL, params=params) as response:
-                    if response.status != 200:
+                async with session.get(ARBEITNOW_BASE_URL, params=params) as response:
+                    if response.status != HTTP_OK:
                         logger.warning("Arbeitnow HTTP %d", response.status)
                         return []
                     data = await response.json(content_type=None)

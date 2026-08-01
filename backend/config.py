@@ -19,8 +19,11 @@ class AppSettings(BaseSettings):
     google_sheet_id: str | None = None
 
     groq_api_key: str | None = None
+    groq_model: str = "llama-3.1-8b-instant"
 
     jsearch_api_key: str | None = None
+
+    la_bonne_alternance_api_key: str | None = None
 
     app_port: int = 8000
     default_country: str = "FR"

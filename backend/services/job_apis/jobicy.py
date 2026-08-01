@@ -1,4 +1,4 @@
-"""Jobicy job API client - free, no API key required.
+"""Jobicy remote-jobs client (free, no API key).
 
 API docs: https://jobicy.com/jobs-rss-feed
 Endpoint: https://jobicy.com/api/v2/remote-jobs
@@ -12,7 +12,6 @@ from typing import Any
 
 import aiohttp
 
-from backend.config import get_settings
 from backend.config import get_settings
 from backend.models.job import RawJobPosting
 from backend.utils.constants import (
@@ -70,10 +69,10 @@ def _parse_jobicy_item(item: dict[str, Any]) -> RawJobPosting | None:
 
 
 class JobicyClient:
-    """Free remote jobs API - no API key needed."""
+    """Free remote-jobs API; no key required."""
 
     def __init__(self) -> None:
-        """Stateless free API client; no credentials required."""
+        """No credentials; client is stateless."""
 
     async def search(self, preferences: Any) -> list[RawJobPosting]:
         """Search Jobicy for remote jobs matching preferences."""
@@ -82,7 +81,7 @@ class JobicyClient:
             return []
         timeout = aiohttp.ClientTimeout(total=JOB_API_TIMEOUT_SECONDS)
         try:
-            # Nested (not combined) async with - avoids aiohttp SSL cleanup races
+            # Separate with blocks: combined ones race on aiohttp SSL cleanup
             async with aiohttp.ClientSession(timeout=timeout) as session:  # noqa: SIM117
                 async with session.get(JOBICY_BASE_URL, params=params) as response:
                     if response.status != HTTP_OK:

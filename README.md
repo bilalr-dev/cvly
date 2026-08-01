@@ -1,356 +1,1022 @@
 # Cvly
 
-AI-powered job application agent that automates the full pipeline - from parsing your resume to discovering matching jobs, scoring fit, tailoring your CV per posting, and tracking applications. Runs locally at `localhost:8000`. Zero heavy dependencies.
+**Language / Langue:** [English](#english) · [Français](#français)
 
-## Quick Start
+AI-powered job application helper that runs on your computer.  
+Assistant de candidature alimenté par l’IA, qui tourne sur votre ordinateur.
 
-```bash
-git clone https://github.com/bilalr-dev/cvly.git
-cd cvly
-cp .env.example .env
-# Fill in your API keys (see setup guide below)
-./start.sh        # macOS/Linux
-start.bat         # Windows
-```
+---
 
-The browser opens automatically to `http://localhost:8000`.
+<a id="english"></a>
 
-## What It Does
+# English
 
-```
-Upload Resume (PDF/DOCX)
-       │
-       ▼
-Module 1: Resume Parser ──► Structured JSON profile (Gemini, temp 0.0)
-       │
-       ▼
-Module 2: Job Discovery ──► France Travail + Adzuna + Arbeitnow + Remotive (parallel)
-       │
-       ▼
-Module 3: JD Parser ──► Structured job requirements per posting (Gemini, temp 0.0)
-       │
-       ▼
-Module 4: CV Analyser ──► Pass 1: Deterministic scoring │ Pass 2: ATF qualitative analysis
-       │
-       ▼
-Module 5: Tailoring ──► Two-stage bullet rewriting + Cover letter + Evaluator QA gate
-       │
-       ▼
-Module 6: Tracker ──► Google Sheets row per approved application
-```
+**Index:** 
+[1. Project context](#1-project-context) 
+[2. Techniques & research](#2-techniques--research)
+[3. Stack](#3-stack)
+[4. Project structure](#4-project-structure)
+[5. Environment setup](#5-environment-setup-env-file)
+[6. How to run](#6-how-to-run)
+[7. How to collaborate](#7-how-to-collaborate)
 
-## How It Was Built
+---
 
-### Architecture Decisions
+## 1. Project context
 
-Every design choice follows three principles: **free-tier APIs only**, **strict SRP** (one file = one responsibility), and **library-first** (don't build what a maintained package already does).
+Cvly is a **local job-application agent**. You upload your résumé, set your search preferences, and Cvly:
 
-**Why FastAPI + HTMX instead of React?** A local single-user tool doesn't need a JavaScript SPA. HTMX gives partial page updates with zero build tooling. Tailwind v3 Play CDN means no npm, no PostCSS, no config files.
+1. Reads your CV (PDF or Word)
+2. Searches several free job boards at once
+3. Scores how well each offer matches you
+4. Rewrites CV bullets and a cover letter for jobs you choose
+5. Lets you review everything before saving
+6. Optionally logs approved applications in a Google Sheet
 
-**Why Gemini instead of OpenAI?** Free tier. `gemini-3.1-flash-lite` gives 1,500 requests/day at zero cost - enough for ~20 full pipeline runs.
+It opens in your browser at `http://localhost:8000`. No cloud account for Cvly itself - only free API keys you put in a `.env` file.
 
-**Why 4 job sources instead of 1?** No single free API covers the French market well. France Travail has the largest French job inventory but misses international postings. Adzuna covers broader European listings. Arbeitnow pulls from ATS systems (Greenhouse, Lever, Workday). Remotive covers remote roles. Together they produce 50-80 results per run.
+**Design principles**
 
-### Anti-Hallucination System (5 Layers)
+- Free-tier APIs only (personal use)
+- One file = one responsibility
+- Prefer maintained libraries over custom code
+- Nothing is saved until you click Approve
 
-LLMs fabricate skills, inflate metrics, and attribute JD requirements to the candidate. This is the highest-risk area in any CV tailoring tool. Cvly implements five defense layers, informed by the [Grounded Optimization framework](https://arxiv.org/abs/2607.01457):
+---
 
-**Layer 1 : Prompt grounding:** Every prompt explicitly forbids fabrication. No "quantify every achievement" instructions (these force the LLM to invent numbers). XML boundary tags (`<SOURCE_OF_TRUTH>` / `<TARGET_JOB_CONTEXT>`) separate the candidate's real experience from JD requirements, preventing cross-contamination.
+## 2. Techniques & research
 
-**Layer 2 : Two-stage keyword rewriting (CoVe-inspired):** Missing ATS keywords are classified before rewriting. Stage 1 (temperature 0.0) evaluates each keyword against the CV and requires evidence. Only validated keywords reach Stage 2 (temperature 0.2), which performs the actual rewrite. The LLM never sees unfillable keywords.
-
-**Layer 3 : Deterministic post-generation checker:** Compares rewritten output against the original CV using set-difference logic. Catches fabricated metrics (numbers not in original), invented short tech names (Go, R, C#), and new tool names. No LLM involved.
-
-**Layer 4 : Evaluator agent (generator-critic):** An independent LLM call acts as an adversarial reviewer. Receives original + rewritten bullets and flags four violation types: fabricated metrics, invented skills, JD attribution, and scope inflation. Operates at temperature 0.0.
-
-**Layer 5 : Human review:** Nothing is saved until the user clicks "Approve." Warnings are displayed in plain language (not developer jargon) with actionable guidance like "A number seems to have been added - check it matches your real experience."
-
-### Translation Quality
-
-Standard LLM translation produces "translationese" grammatically correct but unnatural output instantly spotted by native speakers. Cvly's translation system is informed by three research sources:
-
-- **Target-language prompting** ([IJONIS 2026](https://doi.org/10.xxx)): French translation instructions are written IN French to activate the model's native register
-- **Translation brief** ([Briakou et al. 2024, Google](https://arxiv.org/abs/2409.06790)): The prompt specifies document type (CV), audience (recruiters), and register (factual, concise)
-- **Anti-translationese rules**: Concrete verb mappings ("Managed" → "Piloté", never "Managé"), job title conventions ("Software Engineer" → "Ingénieur logiciel"), and an anglicism blacklist
-
-### Job Discovery Pipeline
+### Pipeline (what happens when you click Run)
 
 ```
-4 API sources (parallel) → dedup → seniority filter (word-boundary regex)
-    → contract reclassification → contract type filter (title-aware)
-    → title relevance pre-filter → cap at 40 → JD parsing
+Upload résumé (PDF/DOCX)
+        │
+        ▼
+Resume parser ──► structured profile (Gemini, temperature 0.0)
+        │
+        ▼
+Job discovery ──► France Travail + Adzuna + Arbeitnow + Remotive
+                  + Jobicy + JSearch + La Bonne Alternance
+        │
+        ▼
+Filters ──► dedup → seniority → contract type → title relevance → max 40 jobs
+        │
+        ▼
+JD parser ──► structured requirements per offer (Gemini)
+        │
+        ▼
+CV analyser ──► Pass 1: deterministic score │ Pass 2: qualitative ATF analysis
+        │
+        ▼
+Tailoring ──► two-stage keyword rewrite + cover letter
+        │
+        ▼
+Quality gates ──► deterministic checker + Gemini evaluator + Groq critic
+                  + one-shot self-correction
+        │
+        ▼
+Human review ──► Approve → Markdown files + Google Sheets tracking
 ```
 
-Each filter stage is a separate function. The title pre-filter saves ~50% of Gemini API calls by skipping obviously irrelevant postings before JD parsing.
+### Anti-hallucination (why the AI does not invent skills)
 
-France Travail uses INSEE commune codes for geographic filtering (not free-text city names). A mapping of major French cities is built into `constants.py`.
+LLMs often invent numbers, tools, or skills. Cvly stacks several defenses, inspired by [Grounded Optimization](https://arxiv.org/abs/2607.01457):
 
-## Pages
+| Layer | What it does |
+|---|---|
+| 1. Prompt grounding | Prompts forbid fabrication; XML tags separate your real CV from the job ad |
+| 2. Two-stage keywords | Inspired by [Chain-of-Verification](https://arxiv.org/abs/2309.11495): only keywords backed by your CV are rewritten |
+| 3. Deterministic checker | Code (no LLM) flags new numbers / short tech names not in the original CV |
+| 4. Evaluator agent | A second Gemini call reviews bullets as a critic |
+| 5. Groq critic + self-correct | A **different** model (Groq) reviews Gemini’s work; Gemini then fixes flagged issues once |
+| 6. Human approve | You see warnings in plain language; nothing is saved until you approve |
 
-| Page | URL | What It Does |
+### Translation quality (French / English)
+
+Informed by:
+
+- [Google multi-stage translation](https://arxiv.org/abs/2409.06790) (Briakou et al., 2024) - translation brief (document type, audience, register)
+- [Iterative translation refinement](https://arxiv.org/abs/2306.03856) (Chen et al., EAMT 2024)
+- Target-language prompting (IJONIS, 2026) - French instructions written in French to avoid awkward “translationese”
+- Concrete verb maps and anglicism blacklist for CVs
+
+### Job discovery filters
+
+```
+Several APIs in parallel → remove duplicates → seniority filter
+  → contract reclassification → contract filter → title relevance → cap at 40
+```
+
+France Travail uses INSEE city codes (not free-text city names). La Bonne Alternance is only called when you select **alternance** or **stage**, and uses ROME codes resolved from your job titles.
+
+### Research references (summary)
+
+| Source | Applied in Cvly |
+|---|---|
+| [Grounded Optimization](https://arxiv.org/abs/2607.01457) | Multi-layer anti-hallucination, evaluator |
+| [Chain-of-Verification](https://arxiv.org/abs/2309.11495) | Two-stage keyword validation |
+| [Google translation brief](https://arxiv.org/abs/2409.06790) | Cover letter / CV translation context |
+| [Iterative refinement](https://arxiv.org/abs/2306.03856) | Native-quality translation |
+| Target-language prompting (IJONIS, 2026) | French prompts in French |
+| Harvard Career Services | STAR bullet formula |
+| La Prompterie + HRLens | French cover-letter conventions |
+
+---
+
+## 3. Stack
+
+| Piece | Version / choice | Role |
 |---|---|---|
-| Dashboard | `/` | Pipeline stats, run trigger, last run timestamp |
-| Settings | `/settings` | Upload resume, set search preferences (titles, location, radius, seniority, contract types, language) |
-| Results | `/results` | Scored job matches with pill filters (score threshold, status), expandable ATF analysis |
-| Preview | `/preview/{job_id}` | Side-by-side bullet comparison, cover letter with inline edit, hallucination warnings, approve/regenerate |
+| Python | 3.12+ | Runtime |
+| FastAPI | 0.115.12 | Local web API |
+| Uvicorn | 0.34.3 | Server |
+| Jinja2 | 3.1.6 | HTML pages |
+| HTMX | 2.x (CDN) | Page updates without a heavy frontend |
+| Tailwind CSS | v3 Play CDN | Styling (no build step) |
+| Gemini | `gemini-3.1-flash-lite` | Parsing, scoring text, rewriting |
+| Groq | `llama-3.1-8b-instant` (default) | Independent critic (optional but recommended) |
+| aiohttp | 3.14.1 | Parallel job API calls |
+| Pydantic / pydantic-settings | 2.x | Data models + `.env` loading |
+| pdfplumber / python-docx | - | Read PDF / Word résumés |
+| gspread / google-auth | - | Optional Google Sheets tracking |
 
-## API Keys Setup
+**Job sources**
 
-### 1. Google Gemini API (REQUIRED)
-
-1. Go to https://aistudio.google.com/apikey
-2. Click "Create API Key"
-3. Copy the key → paste as `GEMINI_API_KEY` in `.env`
-4. Free tier: 15 requests/min, 1,500/day
-
-### 2. France Travail API (recommended - French job market)
-
-1. Go to https://francetravail.io and create an account
-2. Go to https://francetravail.io/data/api/offres-emploi
-3. Click "Utiliser l'API"
-4. Create an application (e.g. name: `myApp`, URL: `https://example.com`)
-5. **Subscribe to "Offres d'emploi v2"** - this is a separate step from creating the app
-6. Go to your application settings to find:
-   - `Identifiant client` (starts with `PAR_...`) → `FRANCE_TRAVAIL_CLIENT_ID`
-   - `Clé secrète` → `FRANCE_TRAVAIL_CLIENT_SECRET`
-7. Free tier: 1,000 calls/day, 10 requests/second
-
-**Troubleshooting:** If authentication fails with `invalid_client`, verify that your app is subscribed to the API (step 5) and that the scope includes `application_{client_id} api_offresdemploiv2 o2dsoffre`.
-
-### 3. Adzuna API (recommended)
-
-1. Go to https://developer.adzuna.com/ and sign up
-2. Application type: "Personal or academic research"
-3. Copy credentials from the dashboard → `ADZUNA_APP_ID` and `ADZUNA_APP_KEY`
-4. Free tier: 250 calls/day
-
-### 4. Arbeitnow + Remotive (automatic - no setup needed)
-
-These two free job APIs are always active. No API keys required. Arbeitnow pulls from ATS systems (Greenhouse, Lever, Workday). Remotive covers remote positions.
-
-### 5. JSearch / RapidAPI (optional)
-
-1. Go to https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch
-2. Subscribe to the **BASIC** plan ($0.00/mo)
-3. Copy the `X-RapidAPI-Key` → `JSEARCH_API_KEY`
-4. Free tier: 200 calls/month
-
-### 6. Google Sheets Tracking (optional)
-
-**Step A - Create a service account:**
-1. Go to https://console.cloud.google.com/apis/credentials
-2. "+ CREATE CREDENTIALS" → "Service account" → name: `cvly-sheets`
-3. Go to "Keys" tab → "Add Key" → JSON → download the file
-4. Move it: `mv ~/Downloads/your-file.json config/google_service_account.json`
-
-**Step B - Enable APIs:**
-1. Enable [Sheets API](https://console.cloud.google.com/apis/library/sheets.googleapis.com)
-2. Enable [Drive API](https://console.cloud.google.com/apis/library/drive.googleapis.com)
-
-**Step C - Create and share the Sheet:**
-1. Create a blank Google Sheet named "Cvly Job Tracker"
-2. Share it with the service account email (find it with `grep client_email config/google_service_account.json`)
-3. Give **Editor** access
-4. Copy the Sheet ID from the URL → `GOOGLE_SHEET_ID`
-
-### API Keys Summary
-
-| Service | Required? | Free tier | Setup time |
-|---|---|---|---|
-| Google Gemini | Yes | 15 RPM, 1,500/day | 1 min |
-| France Travail | Recommended | 1,000/day | 5 min |
-| Adzuna | Recommended | 250/day | 3 min |
-| Arbeitnow | Automatic | Unlimited | 0 min |
-| Remotive | Automatic | Unlimited | 0 min |
-| JSearch | Optional | 200/month | 3 min |
-| Google Sheets | Optional | Unlimited | 10 min |
-
-## Tech Stack
-
-| Component | Version | Why |
+| Source | Key needed? | Notes |
 |---|---|---|
-| Python | 3.12 | Runtime |
-| FastAPI | 0.115.12 | Async backend, no boilerplate |
-| Gemini API | `gemini-3.1-flash-lite` | Free tier, structured JSON output |
-| HTMX | 2.0.4 | Partial updates without a JS framework |
-| Tailwind CSS | v3 Play CDN | Utility styling, zero build step |
-| Jinja2 | 3.1.6 | Server-side templates |
-| aiohttp | 3.12.6 | Async HTTP for parallel API calls |
-| Pydantic | 2.11.4 | Frozen models, schema validation |
+| France Travail | Yes (recommended for France) | Largest French inventory |
+| Adzuna | Yes (recommended) | Broader European listings |
+| Arbeitnow | No | ATS boards (Greenhouse, Lever, …) |
+| Remotive | No | Remote roles |
+| Jobicy | No | Remote roles |
+| JSearch (RapidAPI) | Optional | Extra coverage |
+| La Bonne Alternance | Yes (for alternance/stage) | French apprenticeships / internships |
 
-## Project Structure
+---
+
+## 4. Project structure
+
+Test folders and cache files are omitted on purpose.
 
 ```
 cvly/
 ├── backend/
-│   ├── main.py                  # FastAPI app entry point
-│   ├── state.py                 # In-memory app state + translations
-│   ├── config.py                # Pydantic Settings + get_settings()
-│   ├── prompts.py               # All LLM prompts (7 constants, research-referenced)
-│   ├── models/                  # Frozen Pydantic models per domain
-│   │   ├── resume.py            # ResumeProfile, ExperienceEntry, etc.
-│   │   ├── job.py               # RawJobPosting, ParsedJobDescription
-│   │   ├── match.py             # MatchResult, ATFAnalysis
-│   │   ├── tailoring.py         # TailoredOutput, KeywordAnalysisResult, EvaluatorVerdict
-│   │   └── preferences.py       # SearchPreferences
-│   ├── modules/                 # One module per pipeline stage
-│   │   ├── resume_parser.py     # PDF/DOCX → ResumeProfile
-│   │   ├── job_discovery.py     # Parallel multi-API fetch
-│   │   ├── jd_parser.py         # JD text → ParsedJobDescription
-│   │   ├── cv_analyser.py       # Deterministic scoring (Pass 1)
-│   │   ├── atf_analyser.py      # LLM qualitative analysis (Pass 2)
-│   │   ├── tailoring.py         # Two-stage keyword validation + bullet rewriting
-│   │   ├── cover_letter.py      # Cover letter generation
-│   │   ├── evaluator_agent.py   # Generator-critic QA gate
-│   │   ├── hallucination_checker.py  # Deterministic output validation
-│   │   ├── output_generator.py  # Markdown rendering + language translation
-│   │   └── sheets_tracker.py    # Google Sheets integration
+│   ├── main.py                     # App entry (FastAPI)
+│   ├── config.py                   # Reads .env settings
+│   ├── state.py                    # In-memory state + i18n strings
+│   ├── prompts.py                  # All LLM prompts (research-referenced)
+│   ├── models/                     # Frozen Pydantic models
+│   │   ├── resume.py
+│   │   ├── resume_profile.py
+│   │   ├── job.py
+│   │   ├── match.py
+│   │   ├── tailoring.py
+│   │   └── preferences.py
+│   ├── modules/                    # One module per pipeline stage
+│   │   ├── resume_parser.py
+│   │   ├── job_discovery.py
+│   │   ├── jd_parser.py
+│   │   ├── cv_analyser.py
+│   │   ├── atf_analyser.py
+│   │   ├── tailoring.py
+│   │   ├── cover_letter.py
+│   │   ├── evaluator_agent.py
+│   │   ├── critical_evaluator.py   # Groq critic
+│   │   ├── self_corrector.py       # One-shot Gemini fix after Groq review
+│   │   ├── hallucination_checker.py
+│   │   ├── output_generator.py
+│   │   └── sheets_tracker.py
 │   ├── services/
-│   │   ├── gemini_llm.py        # LLM completions wrapper
-│   │   ├── gemini_embeddings.py # Embedding wrapper
-│   │   ├── rate_limiter.py      # Async token-bucket (10 RPM)
-│   │   └── job_apis/            # One client per job source
+│   │   ├── gemini_llm.py
+│   │   ├── gemini_embeddings.py
+│   │   ├── groq_llm.py
+│   │   ├── rate_limiter.py
+│   │   └── job_apis/
+│   │       ├── base.py
 │   │       ├── france_travail.py
 │   │       ├── adzuna.py
 │   │       ├── arbeitnow.py
 │   │       ├── remotive.py
-│   │       └── jsearch.py
-│   ├── routes/                  # One router per page
-│   │   ├── pipeline.py          # Pipeline orchestration (7 extracted stages)
-│   │   ├── preview.py           # Tailoring + preview (6 extracted functions)
-│   │   ├── results.py
+│   │       ├── jobicy.py
+│   │       ├── jsearch.py
+│   │       └── la_bonne_alternance.py
+│   ├── routes/
+│   │   ├── dashboard.py
 │   │   ├── settings.py
-│   │   └── dashboard.py
+│   │   ├── pipeline.py
+│   │   ├── results.py
+│   │   ├── preview.py
+│   │   └── ws.py                   # Live progress (WebSocket)
 │   └── utils/
-│       ├── constants.py         # Shared constants, enums, keyword maps
-│       ├── dedup.py             # Company/title normalization + dedup
-│       ├── cosine.py            # Cosine similarity
-│       └── file_naming.py       # Output file naming
+│       ├── constants.py
+│       ├── dedup.py
+│       ├── cosine.py
+│       └── location_filter.py
 ├── frontend/
-│   ├── templates/               # Jinja2 templates
-│   │   ├── base.html            # Layout, Tailwind CDN, HTMX
+│   ├── templates/
+│   │   ├── base.html
 │   │   ├── dashboard.html
 │   │   ├── settings.html
 │   │   ├── results.html
 │   │   ├── preview.html
-│   │   └── partials/            # HTMX partial templates
+│   │   ├── view_document.html
+│   │   └── partials/               # HTMX fragments
 │   └── static/
 │       └── favicon.ico
-├── config/
-├── output/                      # Generated .md files
-├── start.sh / start.bat         # One-command startup
+├── config/                         # Place google_service_account.json here
+├── cache/                          # Saved preferences / profile (local)
+├── output/                         # Approved résumé & cover letters (.md)
+├── start.sh / start.bat            # One-command start
 ├── requirements.txt
 ├── requirements-dev.txt
 └── .env.example
 ```
 
-## Contributing
+**Pages**
 
-### Prerequisites
+| Page | URL | Purpose |
+|---|---|---|
+| Dashboard | `/` | Stats, start a run |
+| Settings | `/settings` | Upload CV, search preferences |
+| Results | `/results` | Scored matches, filters |
+| Preview | `/preview/{job_id}` | Compare bullets, edit cover letter, approve |
+
+---
+
+## 5. Environment setup (`.env` file)
+
+You only need to do this once.
+
+### Step 0 - Create the file
+
+```bash
+cd cvly
+cp .env.example .env
+```
+
+Open `.env` in any text editor. Leave unused optional keys empty.
+
+---
+
+### Step 1 - Google Gemini (REQUIRED)
+
+1. Open **https://aistudio.google.com/apikey**
+2. Sign in with your Google account
+3. Click **Create API key**
+4. Copy the key into `.env`:
+
+```env
+GEMINI_API_KEY=paste_your_key_here
+```
+
+Free tier is enough for personal use (rate limits apply).
+
+---
+
+### Step 2 - Groq (recommended - independent AI critic)
+
+1. Open **https://console.groq.com**
+2. Create an account / sign in
+3. Open **https://console.groq.com/keys**
+4. Create an API key and paste it:
+
+```env
+GROQ_API_KEY=paste_your_key_here
+GROQ_MODEL=llama-3.1-8b-instant
+```
+
+Keep `llama-3.1-8b-instant` unless you know you need a larger model (larger models hit free limits faster).
+
+---
+
+### Step 3 - France Travail (recommended for the French market)
+
+1. Create an account at **https://francetravail.io**
+2. Open the Offres d’emploi API page: **https://francetravail.io/data/api/offres-emploi**
+3. Click **Utiliser l’API**
+4. Create an application (example name: `cvly`, example URL: `https://example.com`)
+5. **Subscribe the app to “Offres d’emploi v2”** (separate step from creating the app - do not skip)
+6. In the application settings, copy:
+   - **Identifiant client** (starts with `PAR_...`) → `FRANCE_TRAVAIL_CLIENT_ID`
+   - **Clé secrète** → `FRANCE_TRAVAIL_CLIENT_SECRET`
+
+```env
+FRANCE_TRAVAIL_CLIENT_ID=PAR_...
+FRANCE_TRAVAIL_CLIENT_SECRET=...
+```
+
+If you see `invalid_client`, the app is usually missing the **Offres d’emploi v2** subscription.
+
+---
+
+### Step 4 - Adzuna (recommended)
+
+1. Open **https://developer.adzuna.com/**
+2. Sign up (application type: **Personal or academic research**)
+3. From the dashboard, copy App ID and App Key:
+
+```env
+ADZUNA_APP_ID=...
+ADZUNA_APP_KEY=...
+```
+
+---
+
+### Step 5 - Arbeitnow, Remotive, Jobicy (automatic)
+
+No keys. They start as soon as Cvly runs.
+
+---
+
+### Step 6 - JSearch / RapidAPI (optional)
+
+1. Open **https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch**
+2. Subscribe to the **BASIC** plan ($0.00/mo)
+3. Copy `X-RapidAPI-Key`:
+
+```env
+JSEARCH_API_KEY=...
+```
+
+---
+
+### Step 7 - La Bonne Alternance (recommended if you search alternance / stage)
+
+1. Open **https://api.apprentissage.beta.gouv.fr/fr/compte/profil**
+2. Register with your email (you receive a login link)
+3. Complete your profile; the portal creates an **access token**
+4. Copy the token:
+
+```env
+LA_BONNE_ALTERNANCE_API_KEY=...
+```
+
+API explorer (for reference): **https://api.apprentissage.beta.gouv.fr/fr/explorer/recherche-offre**  
+Cvly only calls this API when **alternance** or **stage** is selected in Settings.
+
+---
+
+### Step 8 - Google Sheets tracking (optional)
+
+**A. Service account**
+
+1. Open **https://console.cloud.google.com/apis/credentials**
+2. **+ CREATE CREDENTIALS** → **Service account** → name e.g. `cvly-sheets`
+3. Open the service account → **Keys** → **Add key** → **JSON** → download the file
+4. Move it into the project:
+
+```bash
+mkdir -p config
+mv ~/Downloads/your-downloaded-file.json config/google_service_account.json
+```
+
+**B. Enable APIs**
+
+1. Enable Sheets: **https://console.cloud.google.com/apis/library/sheets.googleapis.com**
+2. Enable Drive: **https://console.cloud.google.com/apis/library/drive.googleapis.com**
+
+**C. Create and share the sheet**
+
+1. Create a Google Sheet named e.g. `Cvly Job Tracker`
+2. Share it with the service account email (Editor). Find the email with:
+
+```bash
+grep client_email config/google_service_account.json
+```
+
+3. Copy the Sheet ID from the URL  
+   (`https://docs.google.com/spreadsheets/d/THIS_PART/edit`) → `GOOGLE_SHEET_ID`
+
+```env
+GOOGLE_SERVICE_ACCOUNT_PATH=config/google_service_account.json
+GOOGLE_SHEET_ID=...
+```
+
+---
+
+### Step 9 - App defaults (already filled in `.env.example`)
+
+```env
+APP_PORT=8000
+MATCH_THRESHOLD=50
+DEFAULT_LANGUAGE=fr
+DEFAULT_COUNTRY=FR
+```
+
+Change these only if you know why.
+
+---
+
+### Keys summary
+
+| Service | Required? | Free tier (indicative) | Setup time |
+|---|---|---|---|
+| Gemini | Yes | ~15 RPM, ~1,500/day | ~1 min |
+| Groq | Recommended | ~30 RPM | ~2 min |
+| France Travail | Recommended (FR) | ~1,000/day | ~5 min |
+| Adzuna | Recommended | ~250/day | ~3 min |
+| Arbeitnow / Remotive / Jobicy | Automatic | - | 0 |
+| JSearch | Optional | ~200/month | ~3 min |
+| La Bonne Alternance | Recommended for alternance/stage | Free non-commercial | ~3 min |
+| Google Sheets | Optional | - | ~10 min |
+
+---
+
+## 6. How to run
+
+### Production release (recommended for most users)
+
+An **optimized production tag** will be published on the next GitHub push (release tag on [github.com/bilalr-dev/cvly](https://github.com/bilalr-dev/cvly)). Prefer that tagged release over a random commit:
+
+```bash
+git clone https://github.com/bilalr-dev/cvly.git
+cd cvly
+git fetch --tags
+git checkout <release-tag>    # e.g. v1.0.0 - use the tag shown on the Releases page
+cp .env.example .env
+# Fill .env (section 5)
+./start.sh        # macOS / Linux
+# or: start.bat   # Windows
+```
+
+Your browser should open at **http://localhost:8000**.
+
+### Local development (current branch)
+
+Same as above, but stay on the branch you are working on (do not force a tag checkout):
+
+```bash
+git clone https://github.com/bilalr-dev/cvly.git
+cd cvly
+cp .env.example .env
+# Fill .env (section 5)
+./start.sh        # macOS / Linux
+start.bat         # Windows
+```
+
+`start.sh` / `start.bat` will:
+
+1. Check Python 3
+2. Create `.venv` if needed
+3. Install `requirements.txt`
+4. Refuse to start if `.env` is missing
+5. Launch Uvicorn on port 8000
+
+Stop the app with `Ctrl+C`.
+
+---
+
+## 7. How to collaborate
+
+### Prerequisites for contributors
 
 - Python 3.12+
-- All required API keys configured in `.env`
-- Dev dependencies: `pip install -r requirements-dev.txt`
+- `.env` configured (at least `GEMINI_API_KEY`)
+- Dev tools: `pip install -r requirements-dev.txt`
 
-### Development Workflow
-
-Cvly follows strict **Test-Driven Development**. Every change - feature, bugfix, refactor - follows this cycle:
-
-#### 1. RED - Write a Failing Test First
-
-Before touching any source code, write a test that proves the bug exists or defines the expected behavior of the new feature. Run it and confirm it fails.
-
-```bash
-# Write your test in tests/
-pytest tests/test_your_feature.py -v
-# Must show FAILED
-```
-
-#### 2. GREEN - Minimal Implementation
-
-Write the minimum code needed to make the test pass. No optimization, no cleanup, no extra features.
-
-```bash
-pytest tests/test_your_feature.py -v
-# Must show PASSED
-pytest tests/ -v
-# ALL tests must pass - no regressions
-```
-
-#### 3. REFACTOR - Clean Up
-
-Now improve the code: rename variables, extract functions, add docstrings, remove duplication. Run tests after every change to ensure nothing breaks.
-
-```bash
-pytest tests/ -v
-ruff check backend/
-radon cc backend/ -s -n C    # no function should be rated D or worse
-```
-
-### Code Standards
-
-**SRP (Single Responsibility Principle):** One file = one responsibility. If a function does two things, split it. The `pipeline.py` orchestrator calls 7 extracted stage functions - each is independently testable.
-
-**Frozen Pydantic models:** All models use `ConfigDict(frozen=True)`. Use `model_copy(update={...})` to create modified copies.
-
-**Shared Literal types:** Contract types, profile types, seniority levels, and source types are defined once in `models/` and reused everywhere. No string duplication.
-
-**Prompts in one file:** All LLM prompts live in `backend/prompts.py`, organized by module with research references. Never inline a prompt string in a module.
-
-**Constants in one file:** Shared constants, keyword maps, and enums live in `backend/utils/constants.py`. No magic numbers or hardcoded strings in logic files.
-
-### Branch Naming
+### Branch names
 
 ```
-feat/feature-name          # new feature
-fix/bug-description        # bug fix
-refactor/what-changed      # structural improvement
+feat/short-name
+fix/short-description
+refactor/what-changed
 ```
 
-### Pull Request Checklist
+### Pull request checklist
 
-Before submitting a PR, verify all of these:
+- [ ] `ruff check backend/` is clean
+- [ ] New behavior has tests (RED → GREEN → REFACTOR)
+- [ ] No broad `except Exception` - catch specific errors
+- [ ] No hardcoded magic strings - use `backend/utils/constants.py` or translation keys
+- [ ] No leftover `TODO` - implement or open an issue
+- [ ] Prompts only in `backend/prompts.py` (never inlined in modules)
 
-- [ ] No lint errors: `ruff check backend/`
-- [ ] No function rated D or worse: `radon cc backend/ -s -n C`
-- [ ] No security findings: `bandit -r backend/ -ll`
-- [ ] New code has tests (RED → GREEN → REFACTOR followed)
-- [ ] No new `except Exception` - catch specific error types
-- [ ] No hardcoded strings - use `constants.py` or translation keys
-- [ ] No `TODO` comments - either implement it or open an issue
+### Adding a job source
 
-### Adding a New Job Source
+1. Add `backend/services/job_apis/your_source.py` with `async def search(...)`
+2. Register keys in `config.py`, `.env.example`, and this README if needed
+3. Extend the `source` Literal in `backend/models/job.py`
+4. Wire the client in `_build_api_clients()` inside `backend/routes/pipeline.py`
+5. Add tests under `tests/test_services/`
 
-1. Create `backend/services/job_apis/your_source.py`
-2. Implement a client class with `async def search(self, preferences) -> list[RawJobPosting]`
-3. If no API key needed: `__init__(self)` takes no arguments
-4. If API key needed: add the key to `config.py`, `.env.example`, and the README
-5. Add the source name to the `source` Literal in `backend/models/job.py`
-6. Wire it into `_build_api_clients()` in `backend/routes/pipeline.py`
-7. Add client-side location filtering if the API returns global results
-8. Write tests in `tests/test_services/`
+### Adding a prompt
 
-### Adding a New Prompt
+1. Add a constant in `backend/prompts.py` (with a research comment when relevant)
+2. Use `{placeholder}` syntax - never f-strings inside prompt constants
+3. Cover anti-hallucination wording with tests when the prompt is safety-critical
 
-1. Add the constant to `backend/prompts.py` in the correct module section
-2. Include a research reference comment if applicable
-3. Add anti-hallucination tests in `tests/` verifying the prompt contains required safety instructions
-4. Use `{placeholder}` syntax for variables - never f-strings in prompt constants
+### License
 
-### Research References
+MIT
 
-Prompt design and anti-hallucination strategies are informed by:
+---
 
-| Paper | What We Applied |
+<a id="français"></a>
+
+# Français
+
+**Aller à :** 
+[1. Contexte](#1-contexte-du-projet)
+[2. Techniques & recherches](#2-techniques--recherches)
+[3. Stack](#3-stack-utilisé)
+[4. Structure](#4-structure-du-projet)
+[5. Fichier .env](#5-configuration-du-fichier-env)
+[6. Lancer le projet](#6-comment-lancer-le-projet)
+[7. Collaborer](#7-comment-collaborer-correctement)
+
+---
+
+## 1. Contexte du projet
+
+Cvly est un **assistant de candidature local**. Vous importez votre CV, définissez vos préférences de recherche, et Cvly :
+
+1. Lit votre CV (PDF ou Word)
+2. Interroge plusieurs sites d’offres gratuits en parallèle
+3. Note la pertinence de chaque offre
+4. Réécrit des puces de CV et une lettre de motivation pour les offres que vous choisissez
+5. Vous laisse tout relire avant d’enregistrer
+6. Peut journaliser les candidatures validées dans une Google Sheet
+
+L’interface s’ouvre dans le navigateur sur `http://localhost:8000`. Cvly n’a pas de compte cloud propre - seulement des clés d’API gratuites dans un fichier `.env`.
+
+**Principes**
+
+- APIs gratuites uniquement (usage personnel)
+- Un fichier = une responsabilité
+- Préférer des bibliothèques maintenues au code maison
+- Rien n’est enregistré tant que vous n’avez pas cliqué sur Approuver
+
+---
+
+## 2. Techniques & recherches
+
+### Pipeline (quand vous lancez une recherche)
+
+```
+Import du CV (PDF/DOCX)
+        │
+        ▼
+Parseur de CV ──► profil structuré (Gemini, température 0.0)
+        │
+        ▼
+Découverte d’offres ──► France Travail + Adzuna + Arbeitnow + Remotive
+                        + Jobicy + (optionnel) JSearch + La Bonne Alternance
+        │
+        ▼
+Filtres ──► dédoublonnage → séniorité → type de contrat → pertinence du titre → max 40
+        │
+        ▼
+Parseur d’annonce ──► exigences structurées (Gemini)
+        │
+        ▼
+Analyse CV ──► Passe 1 : score déterministe │ Passe 2 : analyse qualitative ATF
+        │
+        ▼
+Personnalisation ──► réécriture en 2 étapes + lettre de motivation
+        │
+        ▼
+Contrôles qualité ──► vérificateur déterministe + évaluateur Gemini + critique Groq
+                      + auto-correction en une passe
+        │
+        ▼
+Relecture humaine ──► Approuver → fichiers Markdown (+ ligne Google Sheets optionnelle)
+```
+
+### Anti-hallucination (pourquoi l’IA n’invente pas de compétences)
+
+Les LLM inventent souvent des chiffres, outils ou compétences. Cvly empile plusieurs défenses, inspirées de [Grounded Optimization](https://arxiv.org/abs/2607.01457) :
+
+| Couche | Rôle |
 |---|---|
-| [Grounded Optimization](https://arxiv.org/abs/2607.01457) (Indukuri & Agrawal, 2026) | 5-layer anti-hallucination defense, evaluator agent |
-| [Chain-of-Verification](https://arxiv.org/abs/2309.11495) (Dhuliawala et al., Meta 2023) | Two-stage keyword classification before rewriting |
-| [Google Multi-Stage Translation](https://arxiv.org/abs/2409.06790) (Briakou et al., 2024) | Translation brief with document context |
-| [Iterative Translation Refinement](https://arxiv.org/abs/2306.03856) (Chen et al., EAMT 2024) | Native-quality translation output |
-| Target-Language Prompting (IJONIS, 2026) | French instructions in French to avoid translationese |
-| Harvard Career Services | STAR bullet formula |
-| La Prompterie + HRLens | French cover letter conventions |
+| 1. Ancrage des prompts | Interdiction d’inventer ; balises XML qui séparent votre CV réel de l’annonce |
+| 2. Mots-clés en 2 étapes | Inspiré de [Chain-of-Verification](https://arxiv.org/abs/2309.11495) : seuls les mots-clés prouvés dans votre CV sont réécrits |
+| 3. Vérificateur déterministe | Du code (sans LLM) signale chiffres / noms techniques absents du CV d’origine |
+| 4. Agent évaluateur | Un second appel Gemini critique les puces |
+| 5. Critique Groq + auto-correction | Un **autre** modèle (Groq) relit Gemini ; Gemini corrige une fois les points signalés |
+| 6. Approbation humaine | Avertissements en langage clair ; rien n’est sauvé sans votre OK |
 
-## License
+### Qualité de traduction (FR / EN)
+
+S’appuie sur :
+
+- [Traduction multi-étapes Google](https://arxiv.org/abs/2409.06790) (Briakou et al., 2024) - brief de traduction
+- [Raffinement itératif](https://arxiv.org/abs/2306.03856) (Chen et al., EAMT 2024)
+- Prompting en langue cible (IJONIS, 2026) - consignes françaises rédigées en français
+- Lexique de verbes et liste noire d’anglicismes pour les CV
+
+### Filtres de découverte d’offres
+
+```
+Plusieurs APIs en parallèle → dédoublonnage → filtre de séniorité
+  → reclassement de contrat → filtre de contrat → pertinence du titre → plafond 40
+```
+
+France Travail utilise les codes commune INSEE. La Bonne Alternance n’est appelée que si vous cochez **alternance** ou **stage**, avec des codes ROME dérivés de vos titres de poste.
+
+### Références de recherche (résumé)
+
+| Source | Utilisation dans Cvly |
+|---|---|
+| [Grounded Optimization](https://arxiv.org/abs/2607.01457) | Défense multi-couches, évaluateur |
+| [Chain-of-Verification](https://arxiv.org/abs/2309.11495) | Validation des mots-clés en 2 étapes |
+| [Brief de traduction Google](https://arxiv.org/abs/2409.06790) | Contexte CV / lettre |
+| [Raffinement itératif](https://arxiv.org/abs/2306.03856) | Traduction de qualité native |
+| Prompting langue cible (IJONIS, 2026) | Consignes FR en français |
+| Harvard Career Services | Formule STAR |
+| La Prompterie + HRLens | Conventions de lettres FR |
+
+---
+
+## 3. Stack utilisé
+
+| Élément | Version / choix | Rôle |
+|---|---|---|
+| Python | 3.12+ | Exécution |
+| FastAPI | 0.115.12 | API web locale |
+| Uvicorn | 0.34.3 | Serveur |
+| Jinja2 | 3.1.6 | Pages HTML |
+| HTMX | 2.x (CDN) | Mises à jour de page sans gros frontend |
+| Tailwind CSS | v3 Play CDN | Style (sans build) |
+| Gemini | `gemini-3.1-flash-lite` | Parsing, texte, réécriture |
+| Groq | `llama-3.1-8b-instant` (défaut) | Critique indépendante (recommandé) |
+| aiohttp | 3.14.1 | Appels d’APIs d’offres en parallèle |
+| Pydantic / pydantic-settings | 2.x | Modèles + lecture du `.env` |
+| pdfplumber / python-docx | - | Lecture PDF / Word |
+| gspread / google-auth | - | Suivi Google Sheets (optionnel) |
+
+**Sources d’offres**
+
+| Source | Clé ? | Notes |
+|---|---|---|
+| France Travail | Oui (recommandé en France) | Plus grand catalogue FR |
+| Adzuna | Oui (recommandé) | Couverture européenne |
+| Arbeitnow | Non | ATS (Greenhouse, Lever, …) |
+| Remotive | Non | Remote |
+| Jobicy | Non | Remote |
+| JSearch (RapidAPI) | Optionnel | Couverture supplémentaire |
+| La Bonne Alternance | Oui (alternance / stage) | Apprentissage / stages FR |
+
+---
+
+## 4. Structure du projet
+
+Les dossiers de tests et fichiers de cache sont volontairement omis.
+
+```
+cvly/
+├── backend/
+│   ├── main.py                     # Point d’entrée FastAPI
+│   ├── config.py                   # Lecture du .env
+│   ├── state.py                    # État en mémoire + textes i18n
+│   ├── prompts.py                  # Tous les prompts LLM
+│   ├── models/                     # Modèles Pydantic figés
+│   │   ├── resume.py
+│   │   ├── resume_profile.py
+│   │   ├── job.py
+│   │   ├── match.py
+│   │   ├── tailoring.py
+│   │   └── preferences.py
+│   ├── modules/                    # Une étape du pipeline = un module
+│   │   ├── resume_parser.py
+│   │   ├── job_discovery.py
+│   │   ├── jd_parser.py
+│   │   ├── cv_analyser.py
+│   │   ├── atf_analyser.py
+│   │   ├── tailoring.py
+│   │   ├── cover_letter.py
+│   │   ├── evaluator_agent.py
+│   │   ├── critical_evaluator.py   # Critique Groq
+│   │   ├── self_corrector.py       # Correction Gemini après Groq
+│   │   ├── hallucination_checker.py
+│   │   ├── output_generator.py
+│   │   └── sheets_tracker.py
+│   ├── services/
+│   │   ├── gemini_llm.py
+│   │   ├── gemini_embeddings.py
+│   │   ├── groq_llm.py
+│   │   ├── rate_limiter.py
+│   │   └── job_apis/
+│   │       ├── base.py
+│   │       ├── france_travail.py
+│   │       ├── adzuna.py
+│   │       ├── arbeitnow.py
+│   │       ├── remotive.py
+│   │       ├── jobicy.py
+│   │       ├── jsearch.py
+│   │       └── la_bonne_alternance.py
+│   ├── routes/
+│   │   ├── dashboard.py
+│   │   ├── settings.py
+│   │   ├── pipeline.py
+│   │   ├── results.py
+│   │   ├── preview.py
+│   │   └── ws.py                   # Progression live (WebSocket)
+│   └── utils/
+│       ├── constants.py
+│       ├── dedup.py
+│       ├── cosine.py
+│       └── location_filter.py
+├── frontend/
+│   ├── templates/
+│   │   ├── base.html
+│   │   ├── dashboard.html
+│   │   ├── settings.html
+│   │   ├── results.html
+│   │   ├── preview.html
+│   │   ├── view_document.html
+│   │   └── partials/
+│   └── static/
+│       └── favicon.ico
+├── config/                         # Placer google_service_account.json ici
+├── cache/                          # Préférences / profil locaux
+├── output/                         # CV & lettres approuvés (.md)
+├── start.sh / start.bat
+├── requirements.txt
+├── requirements-dev.txt
+└── .env.example
+```
+
+**Pages**
+
+| Page | URL | Rôle |
+|---|---|---|
+| Tableau de bord | `/` | Stats, lancer une recherche |
+| Paramètres | `/settings` | Import CV, préférences |
+| Résultats | `/results` | Offres scorées, filtres |
+| Aperçu | `/preview/{job_id}` | Comparer puces, éditer lettre, approuver |
+
+---
+
+## 5. Configuration du fichier `.env`
+
+À faire une seule fois.
+
+### Étape 0 - Créer le fichier
+
+```bash
+cd cvly
+cp .env.example .env
+```
+
+Ouvrez `.env` avec un éditeur de texte. Laissez vides les clés optionnelles non utilisées.
+
+---
+
+### Étape 1 - Google Gemini (OBLIGATOIRE)
+
+1. Ouvrez **https://aistudio.google.com/apikey**
+2. Connectez-vous avec Google
+3. Cliquez sur **Create API key**
+4. Collez la clé dans `.env` :
+
+```env
+GEMINI_API_KEY=collez_votre_cle_ici
+```
+
+---
+
+### Étape 2 - Groq (recommandé - critique IA indépendante)
+
+1. Ouvrez **https://console.groq.com**
+2. Créez un compte / connectez-vous
+3. Allez sur **https://console.groq.com/keys**
+4. Créez une clé et collez-la :
+
+```env
+GROQ_API_KEY=collez_votre_cle_ici
+GROQ_MODEL=llama-3.1-8b-instant
+```
+
+Gardez `llama-3.1-8b-instant` sauf besoin particulier (les modèles plus gros consomment le quota gratuit plus vite).
+
+---
+
+### Étape 3 - France Travail (recommandé pour le marché français)
+
+1. Créez un compte sur **https://francetravail.io**
+2. Page de l’API Offres d’emploi : **https://francetravail.io/data/api/offres-emploi**
+3. Cliquez sur **Utiliser l’API**
+4. Créez une application (ex. nom : `cvly`, URL : `https://example.com`)
+5. **Abonnez l’application à « Offres d’emploi v2 »** (étape séparée - ne pas oublier)
+6. Dans les paramètres de l’application, copiez :
+   - **Identifiant client** (commence par `PAR_...`) → `FRANCE_TRAVAIL_CLIENT_ID`
+   - **Clé secrète** → `FRANCE_TRAVAIL_CLIENT_SECRET`
+
+```env
+FRANCE_TRAVAIL_CLIENT_ID=PAR_...
+FRANCE_TRAVAIL_CLIENT_SECRET=...
+```
+
+Si vous voyez `invalid_client`, l’abonnement **Offres d’emploi v2** manque souvent.
+
+---
+
+### Étape 4 - Adzuna (recommandé)
+
+1. Ouvrez **https://developer.adzuna.com/**
+2. Inscrivez-vous (type : **Personal or academic research**)
+3. Copiez App ID et App Key depuis le tableau de bord :
+
+```env
+ADZUNA_APP_ID=...
+ADZUNA_APP_KEY=...
+```
+
+---
+
+### Étape 5 - Arbeitnow, Remotive, Jobicy (automatique)
+
+Aucune clé. Elles démarrent dès que Cvly tourne.
+
+---
+
+### Étape 6 - JSearch / RapidAPI (optionnel)
+
+1. Ouvrez **https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch**
+2. Abonnez-vous au plan **BASIC** (0 € / mois)
+3. Copiez `X-RapidAPI-Key` :
+
+```env
+JSEARCH_API_KEY=...
+```
+
+---
+
+### Étape 7 - La Bonne Alternance (recommandé pour alternance / stage)
+
+1. Ouvrez **https://api.apprentissage.beta.gouv.fr/fr/compte/profil**
+2. Inscrivez-vous avec votre e-mail (lien de connexion reçu par mail)
+3. Complétez le profil ; le portail crée un **jeton d’accès**
+4. Copiez le jeton :
+
+```env
+LA_BONNE_ALTERNANCE_API_KEY=...
+```
+
+Explorateur d’API : **https://api.apprentissage.beta.gouv.fr/fr/explorer/recherche-offre**  
+Cvly n’appelle cette API que si **alternance** ou **stage** est sélectionné dans Paramètres.
+
+---
+
+### Étape 8 - Suivi Google Sheets (optionnel)
+
+**A. Compte de service**
+
+1. Ouvrez **https://console.cloud.google.com/apis/credentials**
+2. **+ CREATE CREDENTIALS** → **Service account** → nom ex. `cvly-sheets`
+3. Onglet **Keys** → **Add key** → **JSON** → téléchargez le fichier
+4. Déplacez-le dans le projet :
+
+```bash
+mkdir -p config
+mv ~/Downloads/votre-fichier.json config/google_service_account.json
+```
+
+**B. Activer les APIs**
+
+1. Sheets : **https://console.cloud.google.com/apis/library/sheets.googleapis.com**
+2. Drive : **https://console.cloud.google.com/apis/library/drive.googleapis.com**
+
+**C. Créer et partager la feuille**
+
+1. Créez une Google Sheet (ex. `Cvly Job Tracker`)
+2. Partagez-la avec l’e-mail du compte de service (droits **Éditeur**) :
+
+```bash
+grep client_email config/google_service_account.json
+```
+
+3. Copiez l’ID de la feuille depuis l’URL  
+   (`https://docs.google.com/spreadsheets/d/CETTE_PARTIE/edit`) → `GOOGLE_SHEET_ID`
+
+```env
+GOOGLE_SERVICE_ACCOUNT_PATH=config/google_service_account.json
+GOOGLE_SHEET_ID=...
+```
+
+---
+
+### Étape 9 - Réglages de l’app (déjà présents dans `.env.example`)
+
+```env
+APP_PORT=8000
+MATCH_THRESHOLD=50
+DEFAULT_LANGUAGE=fr
+DEFAULT_COUNTRY=FR
+```
+
+---
+
+### Récapitulatif des clés
+
+| Service | Obligatoire ? | Quota gratuit (indicatif) | Temps |
+|---|---|---|---|
+| Gemini | Oui | ~15 req/min, ~1 500/jour | ~1 min |
+| Groq | Recommandé | ~30 req/min | ~2 min |
+| France Travail | Recommandé (FR) | ~1 000/jour | ~5 min |
+| Adzuna | Recommandé | ~250/jour | ~3 min |
+| Arbeitnow / Remotive / Jobicy | Automatique | - | 0 |
+| JSearch | Optionnel | ~200/mois | ~3 min |
+| La Bonne Alternance | Recommandé pour alternance/stage | Gratuit non commercial | ~3 min |
+| Google Sheets | Optionnel | - | ~10 min |
+
+---
+
+## 6. Comment lancer le projet
+
+### Version production (recommandée pour la plupart des utilisateurs)
+
+Un **tag de production optimisé** sera publié au prochain push GitHub (page Releases de [github.com/bilalr-dev/cvly](https://github.com/bilalr-dev/cvly)). Préférez ce tag à un commit au hasard :
+
+```bash
+git clone https://github.com/bilalr-dev/cvly.git
+cd cvly
+git fetch --tags
+git checkout <tag-de-release>    # ex. v1.0.0 - voir la page Releases
+cp .env.example .env
+# Remplir le .env (section 5)
+./start.sh        # macOS / Linux
+# ou : start.bat  # Windows
+```
+
+Le navigateur s’ouvre sur **http://localhost:8000**.
+
+### Développement local (branche courante)
+
+Même procédure, sans forcer un checkout de tag :
+
+```bash
+git clone https://github.com/bilalr-dev/cvly.git
+cd cvly
+cp .env.example .env
+# Remplir le .env (section 5)
+./start.sh        # macOS / Linux
+start.bat         # Windows
+```
+
+`start.sh` / `start.bat` :
+
+1. Vérifient Python 3
+2. Créent `.venv` si besoin
+3. Installent `requirements.txt`
+4. Refusent de démarrer sans `.env`
+5. Lancent Uvicorn sur le port 8000
+
+Arrêt : `Ctrl+C`.
+
+---
+
+## 7. Comment collaborer correctement
+
+### Prérequis contributeurs
+
+- Python 3.12+
+- `.env` configuré (au minimum `GEMINI_API_KEY`)
+- Outils de dev : `pip install -r requirements-dev.txt`
+
+### Démarche (TDD)
+
+Toute modification suit **ROUGE → VERT → REFACTOR** :
+
+1. **ROUGE** - Écrire d’abord un test qui échoue
+2. **VERT** - Code minimal pour le faire passer ; lancer toute la suite
+3. **REFACTOR** - Nettoyer ; relancer les tests
+
+```bash
+ruff check backend/
+```
+
+### Noms de branches
+
+```
+feat/nom-court
+fix/description-courte
+refactor/ce-qui-change
+```
+
+### Checklist de pull request
+
+- [ ] `ruff check backend/` OK
+- [ ] Nouveau comportement couvert par des tests (ROUGE → VERT → REFACTOR)
+- [ ] Pas de `except Exception` trop large
+- [ ] Pas de chaînes magiques - `constants.py` ou clés de traduction
+- [ ] Pas de `TODO` orphelin
+- [ ] Prompts uniquement dans `backend/prompts.py`
+
+### Ajouter une source d’offres
+
+1. Créer `backend/services/job_apis/votre_source.py` avec `async def search(...)`
+2. Déclarer les clés dans `config.py`, `.env.example` et ce README si besoin
+3. Étendre le Literal `source` dans `backend/models/job.py`
+4. Brancher le client dans `_build_api_clients()` (`backend/routes/pipeline.py`)
+5. Ajouter des tests sous `tests/test_services/`
+
+### Ajouter un prompt
+
+1. Constante dans `backend/prompts.py` (commentaire de recherche si utile)
+2. Syntaxe `{placeholder}` - jamais de f-string dans la constante
+3. Tests anti-hallucination si le prompt est critique pour la sécurité du contenu
+
+### Licence
 
 MIT

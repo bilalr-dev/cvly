@@ -36,9 +36,15 @@ def get_language_display_name(language: str) -> str:
 
 # HTTP
 HTTP_OK: int = 200
+HTTP_PARTIAL_CONTENT: int = 206
 JOB_NOT_FOUND_DETAIL: str = "Job not found"
 
+# Gemini
+GEMINI_MODEL: str = "gemini-3.1-flash-lite"
+
 # Groq service defaults (free tier ~30 RPM)
+# 8B stays within free-tier token limits; 70B is higher quality but burns quota faster
+GROQ_DEFAULT_MODEL: str = "llama-3.1-8b-instant"
 GROQ_MAX_TOKENS: int = 2000
 GROQ_TIMEOUT_SECONDS: int = 30
 GROQ_RATE_LIMIT_CALLS: int = 28
@@ -48,12 +54,67 @@ GROQ_ERROR_BODY_CHARS: int = 200
 # Self-corrector: reject truncated cover-letter corrections
 MIN_CORRECTED_COVER_LENGTH: int = 100
 
+# Hallucination / JD parsing thresholds
+SHORT_TECH_NAME_MAX_LEN: int = 2
+JD_MIN_DESCRIPTION_CHARS: int = 100
+SENIOR_YEARS_ONE_PAGE_THRESHOLD: int = 10
+FRENCH_DETECTION_MIN_HITS: int = 2
+
 # Job API client defaults
 JOB_API_TIMEOUT_SECONDS: int = 15
+JOB_API_HTML_FETCH_TIMEOUT_SECONDS: int = 10
+JOB_DESC_EXTRACT_MIN_CHARS: int = 200
+JOB_DESC_EXTRACT_MAX_CHARS: int = 3000
+TRUNCATED_DESCRIPTION_MAX_CHARS: int = 400
+DEFAULT_MAX_RESULTS_PER_SOURCE: int = 20
+PIPELINE_RATE_LIMIT_CALLS: int = 10
+PIPELINE_RATE_LIMIT_PERIOD_SECONDS: float = 60.0
+PIPELINE_TOTAL_STEPS: int = 5
+REMOTIVE_RESULT_LIMIT: str = "50"
+ARBEITNOW_BASE_URL: str = "https://www.arbeitnow.com/api/job-board-api"
+REMOTIVE_BASE_URL: str = "https://remotive.com/api/remote-jobs"
+ADZUNA_SEARCH_URL: str = "https://api.adzuna.com/v1/api/jobs/fr/search/1"
+ADZUNA_RESULTS_PER_PAGE: str = "20"
+GEMINI_EMBEDDING_MODEL: str = "models/text-embedding-004"
 JOBICY_DEFAULT_COUNT: str = "50"
 JOBICY_BASE_URL: str = "https://jobicy.com/api/v2/remote-jobs"
 JOBICY_JOB_PAGE_URL: str = "https://jobicy.com/jobs/{slug}"
 TITLE_DESC_PREVIEW_CHARS: int = 200
+FRANCE_TRAVAIL_AUTH_URL: str = (
+    "https://entreprise.francetravail.fr/connexion/oauth2/access_token?realm=/partenaire"
+)
+FRANCE_TRAVAIL_SEARCH_URL: str = (
+    "https://api.francetravail.io/partenaire/offresdemploi/v2/offres/search"
+)
+FRANCE_TRAVAIL_RATE_LIMIT_CALLS: int = 9
+FRANCE_TRAVAIL_RATE_LIMIT_PERIOD_SECONDS: float = 1.0
+
+# La Bonne Alternance (free API key: https://api.apprentissage.beta.gouv.fr)
+LBA_BASE_URL: str = "https://api.apprentissage.beta.gouv.fr/api/job/v1/search"
+LBA_SOURCES: str = "offres_emploi_lba,offres_emploi_partenaires"
+LBA_DEFAULT_RADIUS_KM: int = 30
+LBA_MAX_RADIUS_KM: int = 200  # API rejects radius > 200
+
+# European Qualification Framework levels for LBA API.
+# Maps education keywords from parsed resumes to EQF levels.
+EDUCATION_TO_EQF_LEVEL: dict[str, int] = {
+    "master": 7,
+    "msc": 7,
+    "m.sc": 7,
+    "ingénieur": 7,
+    "engineer": 7,
+    "bac+5": 7,
+    "licence": 6,
+    "bachelor": 6,
+    "bac+3": 6,
+    "bts": 5,
+    "dut": 5,
+    "deust": 5,
+    "bac+2": 5,
+    "bac": 4,
+    "cap": 3,
+    "bep": 3,
+}
 
 # Google Sheets / Drive
 GOOGLE_SHEETS_SCOPES: tuple[str, ...] = (
@@ -189,6 +250,7 @@ SUPPORTED_LANGUAGES: tuple[str, ...] = ("en", "fr")
 
 class PipelineStatus(StrEnum):
     """Canonical values for app_state['pipeline_status']."""
+
     IDLE = "idle"
     RUNNING = "running"
     COMPLETE = "complete"
@@ -204,6 +266,10 @@ TITLE_RELEVANCE_STOPWORDS: frozenset[str] = frozenset({
     "et", "en", "in", "of",
     "-", "\u2013",
 })
+
+# Sources that already filter by relevance at the API level (ROME codes, etc.).
+# Title relevance filter is skipped for these.
+API_PREFILTERED_SOURCES: frozenset[str] = frozenset({"la_bonne_alternance"})
 
 
 SENIORITY_KEYWORDS = {
@@ -226,28 +292,98 @@ SUPPORTED_SENIORITY_LEVELS: tuple[str, ...] = (
     "stagiaire",
 )
 
+KEYWORD_INDEPENDANT: str = "indépendant"
+KEYWORD_CONTRAT_PRO: str = "contrat pro"
+
 CONTRACT_KEYWORDS = {
     "CDI": ["cdi", "permanent", "full-time", "full time", "unbefristet"],
     "CDD": ["cdd", "fixed-term", "fixed term", "contract", "temporary"],
     "stage": ["stage", "internship", "intern", "stagiaire"],
     "alternance_apprentissage": ["alternance", "apprentissage", "apprenti", "work-study"],
     "alternance_professionnalisation": ["alternance", "professionnalisation"],
-    "freelance": ["freelance", "contractor", "independent", "indépendant"],
+    "freelance": ["freelance", "contractor", "independent", KEYWORD_INDEPENDANT],
 }
 
 # Keywords that indicate a CDD is actually an apprenticeship contract.
 # France Travail encodes these as "CDD - Contrat apprentissage".
 ALTERNANCE_KEYWORDS: list[str] = [
-    "apprentissage", "apprenti", "alternance", "contrat pro",
+    "apprentissage", "apprenti", "alternance", KEYWORD_CONTRAT_PRO,
     "professionnalisation", "work-study",
 ]
 
 # Keywords for detecting contract type from a job title.
 TITLE_CONTRACT_SIGNALS: dict[str, list[str]] = {
     "stage": ["internship", "stage", "intern", "stagiaire"],
-    "freelance": ["freelance", "contractor", "indépendant", "freelancer", "independent"],
-    "alternance_apprentissage": ["alternance", "apprenti", "apprentissage", "work-study"],
+    "freelance": ["freelance", "contractor", KEYWORD_INDEPENDANT, "freelancer", "independent"],
+    "alternance_professionnalisation": ["professionnalisation", KEYWORD_CONTRAT_PRO],
+    "alternance_apprentissage": ["alternance", "apprenti", "apprentissage", "apprenticeship", "work-study"],
 }
+
+# UI / preference labels → canonical contract types used by the pipeline filter.
+CONTRACT_PREFERENCE_ALIASES: dict[str, str] = {
+    "cdi": "cdi",
+    "cdd": "cdd",
+    "freelance": "freelance",
+    "stage": "stage",
+    "alternance": "alternance_apprentissage",
+    "apprentissage": "alternance_apprentissage",
+    "alternance_apprentissage": "alternance_apprentissage",
+    "alternance (apprentissage)": "alternance_apprentissage",
+    "professionnalisation": "alternance_professionnalisation",
+    "alternance_professionnalisation": "alternance_professionnalisation",
+    "alternance (professionnalisation)": "alternance_professionnalisation",
+}
+
+# Free-text contract_type field → canonical key (first matching keyword wins).
+CONTRACT_TYPE_STRING_SIGNALS: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("cdi", "permanent", "unbefristet"), "cdi"),
+    (("cdd", "fixed", "temporary", "interim"), "cdd"),
+    (("freelance", "independent", KEYWORD_INDEPENDANT), "freelance"),
+    (("professionnalisation", KEYWORD_CONTRAT_PRO), "alternance_professionnalisation"),
+    (("alternance", "apprentissage"), "alternance_apprentissage"),
+    (("stage", "internship"), "stage"),
+)
+
+# Phrase-level signals in job descriptions (avoids false positives like "apprentissage continu").
+DESCRIPTION_CONTRACT_SIGNALS: dict[str, tuple[str, ...]] = {
+    "alternance_professionnalisation": (
+        "professionnalisation",
+        "contrat de professionnalisation",
+        KEYWORD_CONTRAT_PRO,
+    ),
+    "alternance_apprentissage": (
+        "en alternance",
+        "contrat d'alternance",
+        "contrat d’alternance",
+        "contrat d'apprentissage",
+        "contrat d’apprentissage",
+        "contrat d apprentissage",
+        "contrat apprentissage",
+        "alternance apprentissage",
+        "work-study",
+        "work study",
+    ),
+    "stage": (
+        "offre de stage",
+        "stage de",
+        "stage chez",
+        "internship",
+        "stagiaire",
+        "as an intern",
+        "intern position",
+    ),
+    "freelance": (
+        "freelance",
+        KEYWORD_INDEPENDANT,
+        "independent contractor",
+    ),
+}
+
+# Continuous-learning phrase that must NOT count as apprenticeship.
+APPRENTICESHIP_FALSE_POSITIVE: str = "apprentissage continu"
+
+# Contract types that get benefit-of-the-doubt when type is unknown.
+BROAD_CONTRACT_TYPES: frozenset[str] = frozenset({"cdi", "cdd"})
 
 # Language-specific conventions for LLM cover letter generation.
 COVER_LETTER_CONVENTIONS: dict[str, str] = {
@@ -296,6 +432,22 @@ CITY_INSEE_CODES: dict[str, str] = {
     "toulon": "83137",
 }
 
+# Lat/lon for APIs that require coordinates (e.g. La Bonne Alternance).
+CITY_COORDINATES: dict[str, tuple[float, float]] = {
+    "paris": (48.8566, 2.3522),
+    "lyon": (45.7640, 4.8357),
+    "marseille": (43.2965, 5.3698),
+    "toulouse": (43.6047, 1.4442),
+    "nice": (43.7102, 7.2620),
+    "nantes": (47.2184, -1.5536),
+    "strasbourg": (48.5734, 7.7521),
+    "montpellier": (43.6108, 3.8767),
+    "bordeaux": (44.8378, -0.5792),
+    "lille": (50.6292, 3.0573),
+    "rennes": (48.1173, -1.6778),
+    "grenoble": (45.1885, 5.7245),
+}
+
 # Substring signals in France Travail typeContrat / typeContratLibelle → canonical contract type.
 # Order matters: first match wins (dict insertion order).
 FT_CONTRACT_TYPE_SIGNALS: dict[str, tuple[str, ...]] = {
@@ -304,6 +456,21 @@ FT_CONTRACT_TYPE_SIGNALS: dict[str, tuple[str, ...]] = {
     "stage": ("stage",),
     "alternance_apprentissage": ("alternance", "apprentissage"),
     "freelance": ("freelance",),
+}
+
+# France Travail natureOffre codes. E2 is both CDD and apprenticeship.
+FRANCE_TRAVAIL_CONTRACT_CODES: dict[str, list[str]] = {
+    "cdi": ["E1"],
+    "cdd": ["E2"],
+    "alternance (apprentissage)": ["E2"],
+    "alternance_apprentissage": ["E2"],
+    "alternance": ["E2", "FS"],
+    "apprentissage": ["E2"],
+    "alternance (professionnalisation)": ["FS"],
+    "alternance_professionnalisation": ["FS"],
+    "professionnalisation": ["FS"],
+    "freelance": ["NS"],
+    "stage": [],  # France Travail doesn't have a natureOffre for stage
 }
 
 # Default query params for JSearch search-v2 (query/country are set per request).
@@ -487,8 +654,23 @@ TRANSLATIONS = {
         "filter_all": "Tous",
         "company_not_specified": "Entreprise non précisée",
         "pipeline_running_warning": "Pipeline en cours",
+        "pipeline_nav_warning_body": (
+            "Le pipeline est en cours d'exécution. Si vous quittez maintenant, "
+            "les résultats en cours seront perdus."
+        ),
         "stay_on_page": "Rester sur la page",
         "leave_anyway": "Quitter quand même",
+        "lang_fr": "Passer en français",
+        "lang_en": "Switch to English",
+        "filter_score_all": "Filtrer : tous les scores",
+        "filter_score_40": "Filtrer : score 40% et plus",
+        "filter_score_60": "Filtrer : score 60% et plus",
+        "filter_score_80": "Filtrer : score 80% et plus",
+        "filter_status_all": "Filtrer : tous les statuts",
+        "filter_status_saved": "Filtrer : sauvegardés",
+        "filter_status_pending": "Filtrer : à traiter",
+        "upload_resume_btn": "Téléverser le CV",
+        "delete_resume_aria": "Supprimer le CV",
         "original_bullets": "Original",
         "col_match": "Match",
         "expand_details": "Voir détails",
@@ -627,8 +809,22 @@ TRANSLATIONS = {
         "filter_all": "All",
         "company_not_specified": "Company not specified",
         "pipeline_running_warning": "Pipeline running",
+        "pipeline_nav_warning_body": (
+            "The pipeline is running. If you leave now, current results will be lost."
+        ),
         "stay_on_page": "Stay on page",
         "leave_anyway": "Leave anyway",
+        "lang_fr": "Switch to French",
+        "lang_en": "Switch to English",
+        "filter_score_all": "Filter: all scores",
+        "filter_score_40": "Filter: score 40% and up",
+        "filter_score_60": "Filter: score 60% and up",
+        "filter_score_80": "Filter: score 80% and up",
+        "filter_status_all": "Filter: all statuses",
+        "filter_status_saved": "Filter: saved",
+        "filter_status_pending": "Filter: pending",
+        "upload_resume_btn": "Upload resume",
+        "delete_resume_aria": "Delete resume",
         "original_bullets": "Original",
         "col_match": "Match",
         "expand_details": "Expand details",

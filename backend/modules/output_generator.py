@@ -27,6 +27,7 @@ from backend.utils.constants import (
 from backend.utils.constants import (
     TYPE_SUFFIXES as _TYPE_SUFFIXES,
 )
+from backend.utils.constants import SENIOR_YEARS_ONE_PAGE_THRESHOLD
 
 
 def _strip_type_suffix(title: str) -> str:
@@ -38,47 +39,52 @@ def _strip_type_suffix(title: str) -> str:
 
 _FILENAME_SANITIZE_PATTERN = re.compile(r"[^\w]")
 
+def _sum_experience_years(exps: list) -> int:
+    """Sum years worked across a list of experience entries."""
+    total = 0
+    current_year = datetime.now(tz=timezone.utc).date().year
+    for exp in exps:
+        m1 = re.search(r"\d{4}", str(getattr(exp, "start_date", "")))
+        m2 = re.search(r"\d{4}", str(getattr(exp, "end_date", "")))
+        start = int(m1.group(0)) if m1 else 0
+        end = int(m2.group(0)) if m2 else current_year
+        if start > 0 and end >= start:
+            total += end - start
+    return total
+
+
+def _is_senior_experience(exps: list) -> bool:
+    """Return True if the first experience title signals a senior/lead role."""
+    if not exps:
+        return False
+    first_title = str(getattr(exps[0], "title", "")).lower()
+    return "senior" in first_title or "lead" in first_title
+
+
+def _jd_has_academic_keywords(jd: Any) -> bool:
+    """Return True if the JD title or responsibilities contain academic keywords."""
+    jd_title = str(getattr(jd, "title", "")).lower()
+    if any(k in jd_title for k in _ACADEMIC_KEYWORDS):
+        return True
+    for r in (getattr(jd, "key_responsibilities", []) or []):
+        if any(k in str(r).lower() for k in _ACADEMIC_KEYWORDS):
+            return True
+    return False
+
+
 def is_one_page_exception(resume: Any, jd: Any) -> bool:
-    total_y = 0
-    is_senior = False
-
     exps = getattr(resume, "experience", [])
-    if isinstance(exps, list) and len(exps) > 0:
-        first_title = str(getattr(exps[0], "title", "")).lower()
-        if "senior" in first_title or "lead" in first_title:
-            is_senior = True
+    exps = exps if isinstance(exps, list) else []
 
-        for exp in exps:
-            s = str(getattr(exp, "start_date", ""))
-            e = str(getattr(exp, "end_date", ""))
-            m1 = re.search(r"\d{4}", s)
-            m2 = re.search(r"\d{4}", e)
-
-            start = int(m1.group(0)) if m1 else 0
-            end = int(m2.group(0)) if m2 else datetime.now(tz=timezone.utc).date().year
-
-            if start > 0 and end >= start:
-                total_y += (end - start)
-
+    is_senior = _is_senior_experience(exps)
     prof_type = str(getattr(resume, "detected_profile", "")).lower()
     if "senior" in prof_type or "lead" in prof_type:
         is_senior = True
 
-    if total_y >= 10 and is_senior:
+    if is_senior and _sum_experience_years(exps) >= SENIOR_YEARS_ONE_PAGE_THRESHOLD:
         return True
 
-    jd_title = str(getattr(jd, "title", "")).lower()
-    if any(k in jd_title for k in _ACADEMIC_KEYWORDS):
-        return True
-
-    jd_resp = getattr(jd, "key_responsibilities", [])
-    if isinstance(jd_resp, list):
-        for r in jd_resp:
-            r_low = str(r).lower()
-            if any(k in r_low for k in _ACADEMIC_KEYWORDS):
-                return True
-
-    return False
+    return _jd_has_academic_keywords(jd)
 
 
 def _render_header(md: list, resume: Any, tailored: Any, _language: str) -> None:
@@ -102,6 +108,14 @@ def _render_header(md: list, resume: Any, tailored: Any, _language: str) -> None
         md.append(str(summary_text))
 
 
+def _format_year_str(edu: Any, language: str) -> str:
+    """Return a display string for the education year or progress status."""
+    if getattr(edu, "in_progress", False):
+        return "en cours" if language == "fr" else "in progress"
+    year = getattr(edu, "year", None)
+    return str(year) if year else ""
+
+
 def _render_education(md: list, resume: Any, language: str, lang_map: dict) -> None:
     """Render education section."""
     edu_list = getattr(resume, "education", []) or []
@@ -110,14 +124,7 @@ def _render_education(md: list, resume: Any, language: str, lang_map: dict) -> N
     md.append("")
     md.append(f"## {lang_map['education']}")
     for edu in edu_list:
-        in_prog = getattr(edu, "in_progress", False)
-        year = getattr(edu, "year", None)
-        if in_prog:
-            year_str = "en cours" if language == "fr" else "in progress"
-        elif year:
-            year_str = str(year)
-        else:
-            year_str = ""
+        year_str = _format_year_str(edu, language)
         degree = getattr(edu, "degree", "")
         inst = getattr(edu, "institution", "")
         field = getattr(edu, "field", "")
@@ -154,6 +161,22 @@ def _build_bullet_map(tailored: Any) -> dict[str, str]:
     return bullet_map
 
 
+_TYPE_LABELS: dict[str, dict[str, str]] = {
+    "internship": {"fr": " (Stage)", "en": " (Internship)"},
+    "volunteer": {"fr": " (Bénévolat)", "en": " (Volunteer)"},
+}
+
+
+def _get_type_label(exp_type: str, language: str) -> str:
+    """Return the parenthetical type annotation for an experience entry."""
+    if exp_type == "alternance":
+        return " (Alternance)"
+    labels = _TYPE_LABELS.get(exp_type)
+    if labels:
+        return labels.get(language, labels["en"])
+    return ""
+
+
 def _render_experience(
     md: list,
     resume: Any,
@@ -171,30 +194,26 @@ def _render_experience(
 
     md.append("")
     md.append(f"## {lang_map['experience']}")
-    roles_limit = MAX_ROLES_LIMIT
     bull_limit = MAX_ROLES_LIMIT if is_exception else MAX_BULLETS_PER_ROLE
-    for exp in exp_list[:roles_limit]:
+    for exp in exp_list[:MAX_ROLES_LIMIT]:
         title = _strip_type_suffix(getattr(exp, "title", ""))
         company = getattr(exp, "company", "")
         start = getattr(exp, "start_date", "")
         end = getattr(exp, "end_date", None) or ("Présent" if language == "fr" else "Present")
-        exp_type = getattr(exp, "type", "")
-        if exp_type == "internship":
-            type_label = " (Stage)" if language == "fr" else " (Internship)"
-        elif exp_type == "alternance":
-            type_label = " (Alternance)"
-        elif exp_type == "volunteer":
-            type_label = " (Bénévolat)" if language == "fr" else " (Volunteer)"
-        else:
-            type_label = ""
+        type_label = _get_type_label(getattr(exp, "type", ""), language)
         md.append(f"**{title}{type_label}** @ {company} ({start} - {end})")
         bullets = getattr(exp, "bullets", []) or []
         for bullet in bullets[:bull_limit]:
-            rewritten = bullet_map.get(str(bullet), None)
-            if rewritten is None:
-                rewritten = f"__TRANSLATE__{str(bullet)}__"
+            rewritten = bullet_map.get(str(bullet), f"__TRANSLATE__{bullet!s}__")
             md.append(f"- {rewritten}")
         md.append("")
+
+
+def _extract_soft_skill(skill: Any) -> tuple[str, str | None]:
+    """Return (name, description) for a soft-skill entry regardless of its type."""
+    if isinstance(skill, dict):
+        return skill.get("name", ""), skill.get("description", None)
+    return getattr(skill, "name", str(skill)), getattr(skill, "description", None)
 
 
 def _render_skills(md: list, resume: Any, tailored: Any, _language: str, lang_map: dict) -> None:
@@ -214,20 +233,16 @@ def _render_skills(md: list, resume: Any, tailored: Any, _language: str, lang_ma
         md.append(", ".join(certs))
     translated_soft = tailored.get("translated_soft_skills") if isinstance(tailored, dict) else None
     soft = translated_soft if translated_soft else list(getattr(sk, "soft", []) or [])
-    if soft:
+    if not soft:
+        return
+    md.append("")
+    md.append(f"## {lang_map.get('skills_soft', 'Soft Skills')}")
+    for skill in soft:
+        name, desc = _extract_soft_skill(skill)
+        md.append(f"**{name}**")
+        if desc:
+            md.append(desc)
         md.append("")
-        md.append(f"## {lang_map.get('skills_soft', 'Soft Skills')}")
-        for skill in soft:
-            if isinstance(skill, dict):
-                name = skill.get("name", "")
-                desc = skill.get("description", None)
-            else:
-                name = getattr(skill, "name", str(skill))
-                desc = getattr(skill, "description", None)
-            md.append(f"**{name}**")
-            if desc:
-                md.append(desc)
-            md.append("")
 
 
 def _render_languages(md: list, resume: Any, language: str, lang_map: dict) -> None:

@@ -3,10 +3,15 @@ from __future__ import annotations
 
 import logging
 
+from backend.services.gemini_llm import GeminiAPIError, GeminiLLMService
+from backend.services.rate_limiter import AsyncRateLimiter
+from backend.utils.constants import JD_MIN_DESCRIPTION_CHARS
+
 from backend.models.job import ParsedJobDescription, RawJobPosting
 from backend.prompts import JD_PARSE_PROMPT
 from backend.services.gemini_llm import GeminiAPIError, GeminiLLMService
 from backend.services.rate_limiter import AsyncRateLimiter
+from backend.utils.constants import JD_MIN_DESCRIPTION_CHARS
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +37,7 @@ async def parse_job_descriptions(
     results: list[ParsedJobDescription] = []
 
     for posting in postings:
-        if not posting.description_text or len(posting.description_text) < 100:
+        if not posting.description_text or len(posting.description_text) < JD_MIN_DESCRIPTION_CHARS:
             logger.warning("Skipping JD parse for %s: description too short", posting.id)
             continue
 

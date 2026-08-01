@@ -1,11 +1,8 @@
-"""Critical evaluator - independent LLM reviewer for ALL Gemini outputs.
+"""Independent Groq reviewer for Gemini-generated output.
 
-Uses Groq (Llama 3.3 70B) as the checker in a maker-checker architecture.
-Gemini generates, Groq verifies. Different models catch different errors.
+Gemini writes; Groq checks. Different models catch different mistakes.
 
-Ref: Grounded Optimization Layer 5 (arXiv:2607.01457)
-Ref: MA-CF framework (Xie et al., ScienceDirect 2026) - decouple factuality from quality
-Ref: Multi-agent orchestration patterns (beam.ai 2026) - maker-checker with model diversity
+Ref: Grounded Optimization L5 (arXiv:2607.01457); MA-CF (Xie et al., 2026).
 """
 from __future__ import annotations
 

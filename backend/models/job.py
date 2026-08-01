@@ -20,13 +20,14 @@ if set(get_args(SupportedLanguage)) != set(SUPPORTED_LANGUAGES):
 
 class RawJobPosting(BaseModel):
     """Unprocessed job posting data extracted from a source."""
+
     model_config = ConfigDict(frozen=True)
 
     company: str
     description_text: str
     id: str
     location: str
-    source: Literal["adzuna", "arbeitnow", "france_travail", "jobicy", "jsearch", "remotive"]
+    source: Literal["adzuna", "arbeitnow", "france_travail", "jobicy", "jsearch", "la_bonne_alternance", "remotive"]
     title: str
     url: str
 
@@ -37,6 +38,7 @@ class RawJobPosting(BaseModel):
 
 class ParsedJobDescription(BaseModel):
     """Structured features extracted from a job description."""
+
     model_config = ConfigDict(frozen=True)
 
     contract_type: str | None = None

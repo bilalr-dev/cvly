@@ -1,13 +1,13 @@
 """ATF recruiter-style analysis of resume/JD fit."""
 from __future__ import annotations
 
+from backend.config import get_settings
 from backend.models.match import ATFAnalysis
 from backend.prompts import (
     ATF_SYSTEM_PROMPT,
     ATF_USER_PROMPT,
 )
 from backend.services.gemini_llm import GeminiLLMService
-from backend.config import get_settings
 
 
 async def analyse_atf(

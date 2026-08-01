@@ -49,6 +49,7 @@
     </div>
     <div class="flex items-center gap-3.5">
       <button hx-post="/pipeline/run" hx-target="#pipeline-status" hx-swap="innerHTML"
+              aria-label="{{ t.run_pipeline }}"
               class="btn-primary">
         {{ t.run_pipeline }}
       </button>
@@ -66,6 +67,7 @@
     </div>
     <div class="flex items-center gap-3.5">
       <button hx-post="/pipeline/run" hx-target="#pipeline-status" hx-swap="innerHTML"
+              aria-label="{{ t.run_pipeline }}"
               class="btn-primary">
         {{ t.run_pipeline }}
       </button>

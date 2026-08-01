@@ -2,19 +2,27 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 import aiohttp
 
 from backend.models.job import RawJobPosting
 from backend.models.preferences import SearchPreferences
+from backend.utils.constants import (
+    ADZUNA_RESULTS_PER_PAGE,
+    ADZUNA_SEARCH_URL,
+    HTTP_OK,
+    JOB_API_HTML_FETCH_TIMEOUT_SECONDS,
+    JOB_DESC_EXTRACT_MAX_CHARS,
+    JOB_DESC_EXTRACT_MIN_CHARS,
+)
 from backend.utils.dedup import generate_posting_id, is_truncated
 
 from .base import BaseJobAPIClient
 
 logger = logging.getLogger(__name__)
 
-_SEARCH_URL = "https://api.adzuna.com/v1/api/jobs/fr/search/1"
 
 class AdzunaClient(BaseJobAPIClient):
 
@@ -47,16 +55,16 @@ class AdzunaClient(BaseJobAPIClient):
                 params = {
                     "app_id": self.app_id,
                     "app_key": self.app_key,
-                    "results_per_page": "20",
+                    "results_per_page": ADZUNA_RESULTS_PER_PAGE,
                 }
 
                 params["what"] = " ".join(preferences.titles)
                 if getattr(preferences, "location", None):
                     params["where"] = preferences.location
 
-                logger.debug(f"Adzuna search params: {params}")
+                logger.debug("Adzuna search params: %s", params)
 
-                async with session.get(_SEARCH_URL, params=params) as response:
+                async with session.get(ADZUNA_SEARCH_URL, params=params) as response:
                     data = await response.json()
 
                 postings = [self._map_response(item) for item in data.get("results", [])]
@@ -80,25 +88,18 @@ class AdzunaClient(BaseJobAPIClient):
             async with aiohttp.ClientSession() as session:
                 async with session.get(
                     url,
-                    timeout=aiohttp.ClientTimeout(total=10),
+                    timeout=aiohttp.ClientTimeout(total=JOB_API_HTML_FETCH_TIMEOUT_SECONDS),
                     headers={"User-Agent": "Mozilla/5.0 (compatible; Cvly/1.0)"},
                     allow_redirects=True,
                 ) as resp:
-                    if resp.status != 200:
+                    if resp.status != HTTP_OK:
                         return None
                     html = await resp.text()
 
-            # parsing standard JD payload structures
-            # Remove script, style, nav, header, footer tags
-            # Extract visible text from main content area
-            import re
-            # Remove HTML tags
             clean = re.sub(r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL)
             clean = re.sub(r"<style[^>]*>.*?</style>", "", clean, flags=re.DOTALL)
             clean = re.sub(r"<[^>]+>", " ", clean)
-            # Normalize whitespace
             clean = re.sub(r"\s+", " ", clean).strip()
-            # Return first 3000 chars of extracted text (enough for JD parsing)
-            return clean[:3000] if len(clean) > 200 else None
-        except Exception:
+            return clean[:JOB_DESC_EXTRACT_MAX_CHARS] if len(clean) > JOB_DESC_EXTRACT_MIN_CHARS else None
+        except (aiohttp.ClientError, OSError):
             return None

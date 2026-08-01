@@ -152,53 +152,74 @@ def save_pipeline_data() -> None:
     )
 
 
+def _load_pipeline_results_file() -> None:
+    if not _PIPELINE_RESULTS_FILE.exists():
+        return
+    try:
+        from backend.models.job import RawJobPosting
+        raw = json.loads(_PIPELINE_RESULTS_FILE.read_text(encoding="utf-8"))
+        app_state["pipeline_results"] = [RawJobPosting.model_validate(p) for p in raw]
+    except (ValueError, KeyError) as e:
+        logger.warning("Failed to load pipeline results: %s", e)
+
+
+def _load_match_results_file() -> None:
+    if not _MATCH_RESULTS_FILE.exists():
+        return
+    try:
+        from backend.models.match import MatchResult
+        raw = json.loads(_MATCH_RESULTS_FILE.read_text(encoding="utf-8"))
+        app_state["match_results"] = {k: MatchResult.model_validate(v) for k, v in raw.items()}
+    except (ValueError, KeyError) as e:
+        logger.warning("Failed to load match results: %s", e)
+
+
+def _load_parsed_jds_file() -> None:
+    if not _PARSED_JDS_FILE.exists():
+        return
+    try:
+        from backend.models.job import ParsedJobDescription
+        raw = json.loads(_PARSED_JDS_FILE.read_text(encoding="utf-8"))
+        app_state["parsed_jds"] = {k: ParsedJobDescription.model_validate(v) for k, v in raw.items()}
+    except (ValueError, KeyError) as e:
+        logger.warning("Failed to load parsed JDs: %s", e)
+
+
+def _load_pipeline_meta_file() -> None:
+    if not _PIPELINE_META_FILE.exists():
+        return
+    try:
+        meta = json.loads(_PIPELINE_META_FILE.read_text(encoding="utf-8"))
+        app_state["last_run"] = meta.get("last_run")
+        status = meta.get("pipeline_status") or PipelineStatus.IDLE
+        # Never restore a mid-run status after process restart
+        if status == PipelineStatus.RUNNING:
+            status = PipelineStatus.COMPLETE
+        app_state["pipeline_status"] = status
+        app_state["pipeline_duration"] = meta.get("pipeline_duration")
+        app_state["pipeline_error"] = meta.get("pipeline_error")
+    except (ValueError, KeyError) as e:
+        logger.warning("Failed to load pipeline meta: %s", e)
+
+
+def _load_approved_jobs_file() -> None:
+    if not _APPROVED_JOBS_FILE.exists():
+        return
+    try:
+        approved_data = json.loads(_APPROVED_JOBS_FILE.read_text(encoding="utf-8"))
+        app_state["approved_jobs"] = set(approved_data.get("approved_jobs", []))
+        app_state["saved_files"] = approved_data.get("saved_files", {})
+    except (ValueError, KeyError, TypeError) as e:
+        logger.warning("Failed to load approved jobs: %s", e)
+
+
 def load_pipeline_data() -> None:
     """Load pipeline data from disk if it exists."""
-    if _PIPELINE_RESULTS_FILE.exists():
-        try:
-            from backend.models.job import RawJobPosting
-            raw = json.loads(_PIPELINE_RESULTS_FILE.read_text(encoding="utf-8"))
-            app_state["pipeline_results"] = [RawJobPosting.model_validate(p) for p in raw]
-        except (ValueError, KeyError) as e:
-            logger.warning("Failed to load pipeline results: %s", e)
-
-    if _MATCH_RESULTS_FILE.exists():
-        try:
-            from backend.models.match import MatchResult
-            raw = json.loads(_MATCH_RESULTS_FILE.read_text(encoding="utf-8"))
-            app_state["match_results"] = {k: MatchResult.model_validate(v) for k, v in raw.items()}
-        except (ValueError, KeyError) as e:
-            logger.warning("Failed to load match results: %s", e)
-
-    if _PARSED_JDS_FILE.exists():
-        try:
-            from backend.models.job import ParsedJobDescription
-            raw = json.loads(_PARSED_JDS_FILE.read_text(encoding="utf-8"))
-            app_state["parsed_jds"] = {k: ParsedJobDescription.model_validate(v) for k, v in raw.items()}
-        except (ValueError, KeyError) as e:
-            logger.warning("Failed to load parsed JDs: %s", e)
-
-    if _PIPELINE_META_FILE.exists():
-        try:
-            meta = json.loads(_PIPELINE_META_FILE.read_text(encoding="utf-8"))
-            app_state["last_run"] = meta.get("last_run")
-            status = meta.get("pipeline_status") or PipelineStatus.IDLE
-            # Never restore a mid-run status after process restart
-            if status == PipelineStatus.RUNNING:
-                status = PipelineStatus.COMPLETE
-            app_state["pipeline_status"] = status
-            app_state["pipeline_duration"] = meta.get("pipeline_duration")
-            app_state["pipeline_error"] = meta.get("pipeline_error")
-        except (ValueError, KeyError) as e:
-            logger.warning("Failed to load pipeline meta: %s", e)
-
-    if _APPROVED_JOBS_FILE.exists():
-        try:
-            approved_data = json.loads(_APPROVED_JOBS_FILE.read_text(encoding="utf-8"))
-            app_state["approved_jobs"] = set(approved_data.get("approved_jobs", []))
-            app_state["saved_files"] = approved_data.get("saved_files", {})
-        except (ValueError, KeyError, TypeError) as e:
-            logger.warning("Failed to load approved jobs: %s", e)
+    _load_pipeline_results_file()
+    _load_match_results_file()
+    _load_parsed_jds_file()
+    _load_pipeline_meta_file()
+    _load_approved_jobs_file()
 
 
 load_pipeline_data()

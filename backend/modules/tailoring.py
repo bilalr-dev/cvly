@@ -12,13 +12,77 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from backend.config import get_settings
 from backend.models import TailoredOutput
 from backend.models.tailoring import KeywordAnalysisResult
 from backend.prompts import BULLET_REWRITE_PROMPT, KEYWORD_ANALYSIS_PROMPT
 from backend.services.gemini_llm import GeminiLLMService
-from backend.config import get_settings
 
 logger = logging.getLogger(__name__)
+
+
+def _collect_cv_bullets(resume: Any) -> list[str]:
+    """Gather all experience bullets and project descriptions from a resume."""
+    parts: list[str] = []
+    for exp in (getattr(resume, "experience", []) or []):
+        for bullet in (getattr(exp, "bullets", []) or []):
+            if isinstance(bullet, str):
+                parts.append(bullet)
+    for proj in (getattr(resume, "academic_projects", []) or []):
+        desc = getattr(proj, "description", "")
+        if desc:
+            parts.append(str(desc))
+    return parts
+
+
+def _collect_skills_text(resume: Any) -> list[str]:
+    """Collect all string skills from technical/tools/certifications attributes."""
+    parts: list[str] = []
+    skills_obj = getattr(resume, "skills", None)
+    if not skills_obj:
+        return parts
+    for attr in ("technical", "tools", "certifications"):
+        for s in (getattr(skills_obj, attr, []) or []):
+            if isinstance(s, str):
+                parts.append(s)
+    return parts
+
+
+def _collect_bullets(resume: Any) -> list[str]:
+    """Return all experience bullet strings from a resume."""
+    bullets: list[str] = []
+    exps = getattr(resume, "experience", [])
+    if not isinstance(exps, list):
+        return bullets
+    for exp in exps:
+        raw = getattr(exp, "bullets", [])
+        if isinstance(raw, list):
+            bullets.extend(b for b in raw if isinstance(b, str))
+    return bullets
+
+
+def _extract_alternance_rhythm(resume: Any) -> str:
+    """Return the alternance rhythm of the current in-progress education, or 'N/A'."""
+    edu = getattr(resume, "education", [])
+    if not isinstance(edu, list):
+        return "N/A"
+    for e in edu:
+        if getattr(e, "in_progress", False) and getattr(e, "alternance_rhythm", None):
+            return str(e.alternance_rhythm)
+    return "N/A"
+
+
+def _extract_weaknesses(match_result: Any) -> list[str]:
+    """Extract ATF weaknesses from a match result, defaulting to an empty list."""
+    atf = getattr(match_result, "atf_analysis", None)
+    if not atf:
+        return []
+    match_info = getattr(atf, "match", None)
+    if not match_info:
+        return []
+    weaknesses = getattr(match_info, "weaknesses", [])
+    return weaknesses if isinstance(weaknesses, list) else []
+
 
 async def analyse_keywords(
     resume: Any,
@@ -34,25 +98,8 @@ async def analyse_keywords(
     if not missing_keywords:
         return KeywordAnalysisResult(applicable=[], unfillable_gaps=[], classifications=[])
 
-    # Build CV content from experience bullets + academic projects
-    cv_parts = []
-    for exp in (getattr(resume, "experience", []) or []):
-        for bullet in (getattr(exp, "bullets", []) or []):
-            if isinstance(bullet, str):
-                cv_parts.append(bullet)
-    for proj in (getattr(resume, "academic_projects", []) or []):
-        desc = getattr(proj, "description", "")
-        if desc:
-            cv_parts.append(str(desc))
-
-    # Build skills list
-    skills_parts = []
-    skills_obj = getattr(resume, "skills", None)
-    if skills_obj:
-        for attr in ["technical", "tools", "certifications"]:
-            for s in (getattr(skills_obj, attr, []) or []):
-                if isinstance(s, str):
-                    skills_parts.append(s)
+    cv_parts = _collect_cv_bullets(resume)
+    skills_parts = _collect_skills_text(resume)
 
     prompt = (KEYWORD_ANALYSIS_PROMPT
         .replace("{cv_content}", "\n".join(cv_parts) if cv_parts else "No experience bullets available.")
@@ -66,6 +113,7 @@ async def analyse_keywords(
         temperature=0.0,  # deterministic classification restricts creativity
     )
 
+
 async def rewrite_bullets(
     resume: Any,
     jd: Any,
@@ -77,42 +125,22 @@ async def rewrite_bullets(
     settings = get_settings()
     language = language or settings.default_language
     country = country or settings.default_country
-    orig_bullets = []
-    exps = getattr(resume, "experience", [])
-    if isinstance(exps, list):
-        for exp in exps:
-            bullets = getattr(exp, "bullets", [])
-            if isinstance(bullets, list):
-                orig_bullets.extend([b for b in bullets if isinstance(b, str)])
+
+    orig_bullets = _collect_bullets(resume)
 
     miss_keys = getattr(match_result, "missing_keywords", [])
-    if isinstance(miss_keys, list):
-        miss_keys = [k for k in miss_keys if isinstance(k, str)]
+    miss_keys = [k for k in miss_keys if isinstance(k, str)] if isinstance(miss_keys, list) else []
 
     key_resp = getattr(jd, "key_responsibilities", [])
-    if isinstance(key_resp, list):
-        key_resp = [r for r in key_resp if isinstance(r, str)]
+    key_resp = [r for r in key_resp if isinstance(r, str)] if isinstance(key_resp, list) else []
 
-    weaknesses = []
-    if getattr(match_result, "atf_analysis", None):
-        match_info = getattr(match_result.atf_analysis, "match", None)
-        if match_info:
-            weaknesses = getattr(match_info, "weaknesses", [])
-    if not isinstance(weaknesses, list):
-        weaknesses = []
+    weaknesses = _extract_weaknesses(match_result)
+    alt_rhythm = _extract_alternance_rhythm(resume)
 
     academic = getattr(resume, "academic_projects", [])
     associations = getattr(resume, "associations_and_extracurriculars", [])
 
-    alt_rhythm = "N/A"
-    edu = getattr(resume, "education", [])
-    if isinstance(edu, list):
-        for e in edu:
-            if getattr(e, "in_progress", False) and getattr(e, "alternance_rhythm", None):
-                alt_rhythm = str(e.alternance_rhythm)
-                break
-
-    # filter validated keywords for rewrite prompt
+    # Stage 1: filter validated keywords before rewriting
     analysis_result = await analyse_keywords(
         resume=resume,
         missing_keywords=miss_keys,
@@ -121,9 +149,14 @@ async def rewrite_bullets(
     validated_keywords = analysis_result.applicable
 
     # Stage 2: rewrite bullets with validated keywords only
+    kw_placeholder = (
+        ", ".join(validated_keywords)
+        if validated_keywords
+        else "None: do not add any keywords not already present in the original bullets."
+    )
     prompt = (BULLET_REWRITE_PROMPT
         .replace("{original_bullets}", " ".join(orig_bullets))
-        .replace("{missing_keywords}", ", ".join(validated_keywords) if validated_keywords else "None: do not add any keywords not already present in the original bullets.")
+        .replace("{missing_keywords}", kw_placeholder)
         .replace("{key_responsibilities}", " ".join(key_resp))
         .replace("{profile_type}", str(getattr(resume, "detected_profile", "experienced")))
         .replace("{language}", language)

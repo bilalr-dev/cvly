@@ -13,19 +13,23 @@ from typing import Any
 import aiohttp
 
 from backend.models.job import RawJobPosting
+from backend.utils.constants import (
+    HTTP_OK,
+    JOB_API_TIMEOUT_SECONDS,
+    REMOTIVE_BASE_URL,
+    REMOTIVE_RESULT_LIMIT,
+)
 from backend.utils.dedup import generate_posting_id
 from backend.utils.location_filter import filter_by_location
 
 logger = logging.getLogger(__name__)
-
-_BASE_URL = "https://remotive.com/api/remote-jobs"
 
 
 class RemotiveClient:
     """Free remote jobs API (no key)."""
 
     def __init__(self) -> None:
-        """Stateless free API client; no credentials required."""
+        """No credentials; client is stateless."""
 
     async def search(self, preferences: Any) -> list[RawJobPosting]:
         """Search Remotive for remote jobs matching preferences."""
@@ -38,14 +42,14 @@ class RemotiveClient:
         # Note: Remotive API does not support radius filtering.
         params: dict[str, str] = {
             "search": search_term,
-            "limit": "50",
+            "limit": REMOTIVE_RESULT_LIMIT,
         }
 
-        timeout = aiohttp.ClientTimeout(total=15)
+        timeout = aiohttp.ClientTimeout(total=JOB_API_TIMEOUT_SECONDS)
         try:
             async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.get(_BASE_URL, params=params) as response:
-                    if response.status != 200:
+                async with session.get(REMOTIVE_BASE_URL, params=params) as response:
+                    if response.status != HTTP_OK:
                         logger.warning("Remotive HTTP %d", response.status)
                         return []
                     data = await response.json(content_type=None)

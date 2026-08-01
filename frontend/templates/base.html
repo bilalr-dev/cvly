@@ -4,8 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cvly - AI Job Agent</title>
-    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@2.0.4"
+            integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+"
+            crossorigin="anonymous"></script>
+    <script src="https://cdn.tailwindcss.com/3.4.17"
+            integrity="sha384-igm5BeiBt36UU4gqwWS7imYmelpTsZlQ45FZf+XBn9MuJbn4nQr7yx1yFydocC/K"
+            crossorigin="anonymous"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -45,6 +49,17 @@
         .btn-icon {
             @apply text-slate-400 hover:text-indigo-600 cursor-pointer bg-white border border-slate-200 shadow-sm hover:shadow p-1 rounded shrink-0;
         }
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border-width: 0;
+        }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans flex h-screen overflow-hidden">
@@ -76,12 +91,14 @@
               <button
                 hx-post="/settings/language/fr"
                 hx-swap="none"
+                aria-label="{{ t.get('lang_fr', 'Passer en français') }}"
                 class="{% if language == 'fr' %}bg-white text-indigo-600 shadow-sm{% else %}bg-transparent text-slate-500{% endif %} border-none rounded-md px-3 py-1 text-xs font-bold cursor-pointer">
                 FR
               </button>
               <button
                 hx-post="/settings/language/en"
                 hx-swap="none"
+                aria-label="{{ t.get('lang_en', 'Switch to English') }}"
                 class="{% if language == 'en' %}bg-white text-indigo-600 shadow-sm{% else %}bg-transparent text-slate-500{% endif %} border-none rounded-md px-3 py-1 text-xs font-bold cursor-pointer">
                 EN
               </button>
@@ -97,7 +114,12 @@
     <div id="toast-container" class="fixed top-4 right-4 z-[100] flex flex-col gap-2"></div>
     <!-- Pipeline navigation warning modal -->
     <div id="nav-warning-modal" class="hidden fixed inset-0 z-[200] flex items-center justify-center">
-      <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onclick="closeNavWarning()"></div>
+      <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+           role="button"
+           tabindex="0"
+           aria-label="{{ t.get('stay_on_page', 'Rester sur la page') }}"
+           onclick="closeNavWarning()"
+           onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();closeNavWarning();}"></div>
       <div class="relative bg-white rounded-xl shadow-xl p-6 max-w-md mx-4">
         <div class="text-lg font-semibold text-slate-800 mb-2">{{ t.get("pipeline_running_warning", "Pipeline en cours") }}</div>
         <div class="text-sm text-slate-600 mb-5" id="nav-warning-text"></div>
@@ -118,8 +140,7 @@
       let pipelineRunning = false;
       let pendingNavUrl = null;
 
-      const WARNING_FR = "Le pipeline est en cours d'exécution. Si vous quittez maintenant, les résultats en cours seront perdus.";
-      const WARNING_EN = "The pipeline is running. If you leave now, current results will be lost.";
+      const NAV_WARNING_BODY = {{ t.get("pipeline_nav_warning_body", "Le pipeline est en cours d'exécution. Si vous quittez maintenant, les résultats en cours seront perdus.") | tojson }};
 
       document.body.addEventListener('htmx:afterRequest', function(e) {
         if (e.detail.pathInfo && e.detail.pathInfo.requestPath === '/pipeline/run') pipelineRunning = true;
@@ -136,8 +157,7 @@
           e.preventDefault();
           e.stopPropagation();
           pendingNavUrl = href;
-          const lang = document.documentElement.lang || 'fr';
-          document.getElementById('nav-warning-text').textContent = lang === 'en' ? WARNING_EN : WARNING_FR;
+          document.getElementById('nav-warning-text').textContent = NAV_WARNING_BODY;
           document.getElementById('nav-warning-modal').classList.remove('hidden');
         }
       });
