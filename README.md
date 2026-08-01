@@ -20,8 +20,6 @@ Assistant de candidature alimenté par l’IA, qui tourne sur votre ordinateur.
 - [5. Environment setup](#5-environment-setup-env-file)
 - [6. How to run](#6-how-to-run)
 - [7. How to collaborate](#7-how-to-collaborate)
-- [Français](#french)
-
 ---
 
 ## 1. Project context
@@ -297,7 +295,19 @@ Keep `llama-3.1-8b-instant` unless you know you need a larger model (larger mode
 2. Open the Offres d’emploi API page: **https://francetravail.io/data/api/offres-emploi**
 3. Click **Utiliser l’API**
 4. Create an application (example name: `cvly`, example URL: `https://example.com`)
-5. **Subscribe the app to “Offres d’emploi v2”** (separate step from creating the app - do not skip)
+5. **Subscribe the app to APIs** : this is a separate step from creating the app, do not skip:
+   - Click **“Ajouter une API”**
+   - Find **“Offres d’emploi v2”** → click **“Ajouter”** (required)
+   - Scroll down to the AI section and find **“ROMEO v2”** → click **“Ajouter”** (recommended)
+
+   After subscribing, your app page should show both under **“APIs souscrites”**:
+   ```
+   Offres d’emploi v2    - 10 RPS
+   ROMEO v2              - 3 RPS
+   ```
+
+   > **What is ROMEO v2?** It lets Cvly automatically map any job title (lawyer, engineer, accountant…) to French ROME occupational codes. This improves search results from La Bonne Alternance for any profession, not just IT. Without it, Cvly still works but La Bonne Alternance results may be limited.
+
 6. In the application settings, copy:
    - **Identifiant client** (starts with `PAR_...`) → `FRANCE_TRAVAIL_CLIENT_ID`
    - **Clé secrète** → `FRANCE_TRAVAIL_CLIENT_SECRET`
@@ -428,14 +438,16 @@ Change these only if you know why.
 
 ### Production release (recommended for most users)
 
-Use a **tagged release**, not a random commit. Latest stable tag: **`v1.0.3`**.
+Use a **tagged release**, not a random commit. Latest stable tag: **`v1.0.5`**.
 
 All tags and release notes: [github.com/bilalr-dev/cvly/releases](https://github.com/bilalr-dev/cvly/releases)  
 All tags list: [github.com/bilalr-dev/cvly/tags](https://github.com/bilalr-dev/cvly/tags)
 
 | Tag | What it is |
 |---|---|
-| `v1.0.3` | Latest stable (README Markdown / anchor / badge fixes) - **use this** |
+| `v1.0.5` | ROMEO v2 docs, fork contributor guide, CDN CORS fix (view page) - **use this** |
+| `v1.0.4` | Auto-install Python 3.12 in start scripts |
+| `v1.0.5` | README Markdown / anchor / badge fixes |
 | `v1.0.2` | Docs + run guide with tags |
 | `v1.0.1` | Tailwind CDN CORS fix |
 | `v1.0.0` | First production release |
@@ -446,11 +458,11 @@ All tags list: [github.com/bilalr-dev/cvly/tags](https://github.com/bilalr-dev/c
 git clone https://github.com/bilalr-dev/cvly.git
 cd cvly
 git fetch --tags
-git checkout v1.0.3
+git checkout v1.0.5
 cp .env.example .env
 # Fill .env (section 5)
 ./start.sh        # macOS / Linux
-# or: start.bat   # Windows
+# or: ./start.bat   # Windows
 ```
 
 **Already cloned - switch to / update the tag**
@@ -458,9 +470,9 @@ cp .env.example .env
 ```bash
 cd cvly
 git fetch --tags
-git checkout v1.0.3
+git checkout vx.x.x'
 ./start.sh        # macOS / Linux
-# or: start.bat   # Windows
+# or: ./start.bat   # Windows
 ```
 
 Your browser should open at **http://localhost:8000**. If styles look broken, hard-refresh the page (`Cmd+Shift+R` / `Ctrl+Shift+R`).
@@ -492,11 +504,121 @@ Stop the app with `Ctrl+C`.
 
 ## 7. How to collaborate
 
-### Prerequisites for contributors
+### Reporting issues
 
-- Python 3.12+
-- `.env` configured (at least `GEMINI_API_KEY`)
-- Dev tools: `pip install -r requirements-dev.txt`
+If you found a bug or have a feature request:
+
+1. Go to [Issues](https://github.com/bilalr-dev/cvly/issues)
+2. Click **"New Issue"**
+3. Describe: what you expected, what happened, how to reproduce
+4. Include your Python version (`python3 --version`) and OS
+
+### Contributing code (fork workflow)
+
+Cvly uses a **fork-based workflow**. You do not need write access to the main repository.
+
+**Step 1 : Fork the repository:**
+
+1. Go to [github.com/bilalr-dev/cvly](https://github.com/bilalr-dev/cvly)
+2. Click the **"Fork"** button (top-right)
+3. This creates your own copy at `github.com/YOUR_USERNAME/cvly`
+
+**Step 2 : Clone your fork:**
+
+```bash
+git clone https://github.com/YOUR_USERNAME/cvly.git
+cd cvly
+```
+
+**Step 3 : Set up the upstream remote:**
+
+```bash
+git remote add upstream https://github.com/bilalr-dev/cvly.git
+
+# Verify
+git remote -v
+# origin    https://github.com/YOUR_USERNAME/cvly.git (fetch/push)
+# upstream  https://github.com/bilalr-dev/cvly.git (fetch/push)
+```
+
+**Step 4 : Install dependencies:**
+
+```bash
+pip install -r requirements.txt
+pip install -r requirements-dev.txt
+cp .env.example .env
+# Fill in your API keys (section 5)
+```
+
+**Step 5 : Create a branch from the latest main:**
+
+```bash
+git fetch upstream
+git checkout main
+git merge upstream/main
+git checkout -b feat/your-feature-name
+```
+
+**Step 6 : Code using TDD (RED → GREEN → REFACTOR):**
+
+1. **RED:** Write a failing test first
+```bash
+pytest tests/test_your_feature.py -v   # Must FAIL
+```
+
+2. **GREEN:** Minimum code to pass
+```bash
+pytest tests/test_your_feature.py -v   # Must PASS
+pytest                                  # No regressions
+```
+
+3. **REFACTOR:** Clean up, then verify
+```bash
+pytest                            # All pass
+ruff check backend/               # No lint errors
+radon cc backend/ -s -n C         # No D-rated functions
+bandit -r backend/ -ll            # No security issues
+```
+
+**Step 7 : Commit with clear messages:**
+
+```bash
+git add .
+git commit -m "feat: add location filter for remote jobs
+
+- Created location_filter.py for client-side geo matching
+- Updated arbeitnow and remotive to use shared filter
+- Added 5 tests"
+```
+
+Format: `type: short description` : types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`
+
+**Step 8 : Push and open a Pull Request:**
+
+```bash
+git push origin feat/your-feature-name
+```
+
+Then on GitHub: click **"Compare & pull request"** → verify base is `bilalr-dev/cvly:main` → fill in the description → submit.
+
+**Step 9 : Address review feedback:**
+
+```bash
+# Make changes, then:
+git add .
+git commit -m "fix: address review feedback"
+git push origin feat/your-feature-name
+# PR updates automatically
+```
+
+**Keeping your fork up to date:**
+
+```bash
+git fetch upstream
+git checkout main
+git merge upstream/main
+git push origin main
+```
 
 ### Branch names
 
@@ -504,34 +626,36 @@ Stop the app with `Ctrl+C`.
 feat/short-name
 fix/short-description
 refactor/what-changed
+docs/what-updated
 ```
 
 ### Pull request checklist
 
-- [ ] `ruff check backend/` is clean
+- [ ] `pytest` : all tests pass
+- [ ] `ruff check backend/` : no lint errors
+- [ ] `radon cc backend/ -s -n C` : no D-rated functions
+- [ ] `bandit -r backend/ -ll` : no security issues
 - [ ] New behavior has tests (RED → GREEN → REFACTOR)
-- [ ] No broad `except Exception` - catch specific errors
-- [ ] No hardcoded magic strings - use `backend/utils/constants.py` or translation keys
-- [ ] No leftover `TODO` - implement or open an issue
+- [ ] No broad `except Exception` : catch specific errors
+- [ ] No hardcoded magic strings : use `backend/utils/constants.py` or translation keys
+- [ ] No leftover `TODO` : implement or open an issue
 - [ ] Prompts only in `backend/prompts.py` (never inlined in modules)
 
 ### Adding a job source
 
 1. Add `backend/services/job_apis/your_source.py` with `async def search(...)`
-2. Register keys in `config.py`, `.env.example`, and this README if needed
+2. If API key needed: register in `config.py`, `.env.example`, and this README (both EN and FR)
 3. Extend the `source` Literal in `backend/models/job.py`
 4. Wire the client in `_build_api_clients()` inside `backend/routes/pipeline.py`
-5. Add tests under `tests/test_services/`
+5. Add location filtering if the API returns global results
+6. Add tests under `tests/test_services/`
 
 ### Adding a prompt
 
 1. Add a constant in `backend/prompts.py` (with a research comment when relevant)
-2. Use `{placeholder}` syntax - never f-strings inside prompt constants
-3. Cover anti-hallucination wording with tests when the prompt is safety-critical
-
-### License
-
-This project is licensed under the MIT License.
+2. Use `{placeholder}` syntax : never f-strings inside prompt constants
+3. If the prompt needs `{language}`, add it
+4. Cover anti-hallucination wording with tests when the prompt is safety-critical
 
 ---
 
@@ -548,8 +672,6 @@ This project is licensed under the MIT License.
 - [5. Fichier `.env`](#5-configuration-du-fichier-env)
 - [6. Lancer le projet](#6-comment-lancer-le-projet)
 - [7. Collaborer](#7-comment-collaborer-correctement)
-- [English](#english)
-
 ---
 
 ## 1. Contexte du projet
@@ -823,8 +945,20 @@ Gardez `llama-3.1-8b-instant` sauf besoin particulier (les modèles plus gros co
 2. Page de l’API Offres d’emploi : **https://francetravail.io/data/api/offres-emploi**
 3. Cliquez sur **Utiliser l’API**
 4. Créez une application (ex. nom : `cvly`, URL : `https://example.com`)
-5. **Abonnez l’application à « Offres d’emploi v2 »** (étape séparée - ne pas oublier)
-6. Dans les paramètres de l’application, copiez :
+5. **Abonnez l'application aux APIs** : étape séparée de la création, ne pas oublier :
+   - Cliquez sur **« Ajouter une API »**
+   - Trouvez **« Offres d'emploi v2 »** → cliquez sur **« Ajouter »** (obligatoire)
+   - Descendez jusqu'à la section IA et trouvez **« ROMEO v2 »** → cliquez sur **« Ajouter »** (recommandé)
+
+   Après souscription, la page de votre application devrait afficher les deux sous **« APIs souscrites »** :
+   ```
+   Offres d'emploi v2    : 10 appels / seconde
+   ROMEO v2              : 3 appels / seconde
+   ```
+
+   > **Qu'est-ce que ROMEO v2 ?** Il permet à Cvly de mapper automatiquement n'importe quel intitulé de poste (juriste, ingénieur, comptable…) vers les codes ROME français. Cela améliore les résultats de La Bonne Alternance pour n'importe quel métier, pas uniquement l'informatique. Sans ROMEO, Cvly fonctionne toujours mais les résultats La Bonne Alternance peuvent être limités.
+
+6. Dans les paramètres de l'application, copiez :
    - **Identifiant client** (commence par `PAR_...`) → `FRANCE_TRAVAIL_CLIENT_ID`
    - **Clé secrète** → `FRANCE_TRAVAIL_CLIENT_SECRET`
 
@@ -952,17 +1086,19 @@ DEFAULT_COUNTRY=FR
 
 ### Version production (recommandée pour la plupart des utilisateurs)
 
-Utilisez un **tag de release**, pas un commit au hasard. Dernier tag stable : **`v1.0.3`**.
+Utilisez un **tag de release**, pas un commit au hasard. Dernier tag stable : **`v1.0.5`**.
 
 Toutes les releases : [github.com/bilalr-dev/cvly/releases](https://github.com/bilalr-dev/cvly/releases)  
 Liste des tags : [github.com/bilalr-dev/cvly/tags](https://github.com/bilalr-dev/cvly/tags)
 
 | Tag | Contenu |
 |---|---|
-| `v1.0.3` | Dernière version stable (corrections Markdown / ancres / badges) - **à utiliser** |
-| `v1.0.2` | Docs + guide de lancement avec tags |
-| `v1.0.1` | Correctif CORS CDN Tailwind |
-| `v1.0.0` | Première release production |
+| `v1.0.5` | ROMEO v2 docs, fork contributor guide, CDN CORS fix (view page) - **use this** |
+| `v1.0.4` | Auto-install Python 3.12 in start scripts |
+| `v1.0.5` | README Markdown / anchor / badge fixes |
+| `v1.0.2` | Docs + run guide with tags |
+| `v1.0.1` | Tailwind CDN CORS fix |
+| `v1.0.0` | First production release |
 
 **Nouvelle installation**
 
@@ -970,7 +1106,7 @@ Liste des tags : [github.com/bilalr-dev/cvly/tags](https://github.com/bilalr-dev
 git clone https://github.com/bilalr-dev/cvly.git
 cd cvly
 git fetch --tags
-git checkout v1.0.3
+git checkout v1.0.5
 cp .env.example .env
 # Remplir le .env (section 5)
 ./start.sh        # macOS / Linux
@@ -982,7 +1118,7 @@ cp .env.example .env
 ```bash
 cd cvly
 git fetch --tags
-git checkout v1.0.3
+git checkout v1.0.5
 ./start.sh        # macOS / Linux
 # ou : start.bat  # Windows
 ```
@@ -1016,22 +1152,120 @@ Arrêt : `Ctrl+C`.
 
 ## 7. Comment collaborer correctement
 
-### Prérequis contributeurs
+### Signaler un problème
 
-- Python 3.12+
-- `.env` configuré (au minimum `GEMINI_API_KEY`)
-- Outils de dev : `pip install -r requirements-dev.txt`
+Si vous avez trouvé un bug ou souhaitez proposer une fonctionnalité :
 
-### Démarche (TDD)
+1. Allez dans [Issues](https://github.com/bilalr-dev/cvly/issues)
+2. Cliquez sur **"New Issue"**
+3. Décrivez : ce que vous attendiez, ce qui s'est passé, comment reproduire
+4. Incluez votre version de Python (`python3 --version`) et votre OS
 
-Toute modification suit **ROUGE → VERT → REFACTOR** :
+### Contribuer au code (workflow fork)
 
-1. **ROUGE** - Écrire d’abord un test qui échoue
-2. **VERT** - Code minimal pour le faire passer ; lancer toute la suite
-3. **REFACTOR** - Nettoyer ; relancer les tests
+Cvly utilise un **workflow basé sur le fork**. Vous n'avez pas besoin d'accès en écriture au dépôt principal.
+
+**Étape 1 : Forker le dépôt :**
+
+1. Allez sur [github.com/bilalr-dev/cvly](https://github.com/bilalr-dev/cvly)
+2. Cliquez sur le bouton **"Fork"** (en haut à droite)
+3. Cela crée votre propre copie à `github.com/VOTRE_NOM/cvly`
+
+**Étape 2 : Cloner votre fork :**
 
 ```bash
-ruff check backend/
+git clone https://github.com/VOTRE_NOM/cvly.git
+cd cvly
+```
+
+**Étape 3 : Configurer le remote upstream :**
+
+```bash
+git remote add upstream https://github.com/bilalr-dev/cvly.git
+
+# Vérifier
+git remote -v
+# origin    https://github.com/VOTRE_NOM/cvly.git (fetch/push)
+# upstream  https://github.com/bilalr-dev/cvly.git (fetch/push)
+```
+
+**Étape 4 : Installer les dépendances :**
+
+```bash
+pip install -r requirements.txt
+pip install -r requirements-dev.txt
+cp .env.example .env
+# Remplissez vos clés API (section 5)
+```
+
+**Étape 5 : Créer une branche depuis le dernier main :**
+
+```bash
+git fetch upstream
+git checkout main
+git merge upstream/main
+git checkout -b feat/nom-de-votre-fonctionnalité
+```
+
+**Étape 6 : Coder en TDD (ROUGE → VERT → REFACTOR) :**
+
+1. **ROUGE :** Écrire d'abord un test qui échoue
+```bash
+pytest tests/test_votre_fonctionnalité.py -v   # Doit ÉCHOUER
+```
+
+2. **VERT :** Code minimal pour le faire passer
+```bash
+pytest tests/test_votre_fonctionnalité.py -v   # Doit PASSER
+pytest                                          # Pas de régressions
+```
+
+3. **REFACTOR :** Nettoyer, puis vérifier
+```bash
+pytest                            # Tous passent
+ruff check backend/               # Pas d'erreurs de lint
+radon cc backend/ -s -n C         # Pas de fonctions notées D
+bandit -r backend/ -ll            # Pas de problèmes de sécurité
+```
+
+**Étape 7 : Commitez avec des messages clairs :**
+
+```bash
+git add .
+git commit -m "feat: ajout du filtre géographique pour les offres distantes
+
+- Création de location_filter.py pour le filtrage géo côté client
+- Mise à jour de arbeitnow et remotive pour utiliser le filtre partagé
+- Ajout de 5 tests"
+```
+
+Format : `type: description courte` : types : `feat`, `fix`, `refactor`, `docs`, `test`, `chore`
+
+**Étape 8 : Poussez et ouvrez une Pull Request :**
+
+```bash
+git push origin feat/nom-de-votre-fonctionnalité
+```
+
+Sur GitHub : cliquez sur **"Compare & pull request"** → vérifiez que la base est `bilalr-dev/cvly:main` → remplissez la description → envoyez.
+
+**Étape 9 : Répondre aux retours de review :**
+
+```bash
+# Faites les modifications, puis :
+git add .
+git commit -m "fix: prise en compte du retour review"
+git push origin feat/nom-de-votre-fonctionnalité
+# La PR se met à jour automatiquement
+```
+
+**Garder votre fork à jour :**
+
+```bash
+git fetch upstream
+git checkout main
+git merge upstream/main
+git push origin main
 ```
 
 ### Noms de branches
@@ -1040,30 +1274,36 @@ ruff check backend/
 feat/nom-court
 fix/description-courte
 refactor/ce-qui-change
+docs/mise-à-jour
 ```
 
 ### Checklist de pull request
 
-- [ ] `ruff check backend/` OK
-- [ ] Nouveau comportement couvert par des tests (ROUGE → VERT → REFACTOR)
-- [ ] Pas de `except Exception` trop large
-- [ ] Pas de chaînes magiques - `constants.py` ou clés de traduction
-- [ ] Pas de `TODO` orphelin
+- [ ] `pytest` : tous les tests passent
+- [ ] `ruff check backend/` : pas d'erreurs de lint
+- [ ] `radon cc backend/ -s -n C` : pas de fonctions notées D ou pire
+- [ ] `bandit -r backend/ -ll` : pas de problèmes de sécurité
+- [ ] Le nouveau code a des tests (ROUGE → VERT → REFACTOR respecté)
+- [ ] Pas de `except Exception` trop large : erreurs spécifiques
+- [ ] Pas de chaînes magiques : `backend/utils/constants.py` ou clés de traduction
+- [ ] Pas de `TODO` orphelin : implémenter ou ouvrir une issue
 - [ ] Prompts uniquement dans `backend/prompts.py`
 
-### Ajouter une source d’offres
+### Ajouter une source d'offres
 
-1. Créer `backend/services/job_apis/votre_source.py` avec `async def search(...)`
-2. Déclarer les clés dans `config.py`, `.env.example` et ce README si besoin
-3. Étendre le Literal `source` dans `backend/models/job.py`
-4. Brancher le client dans `_build_api_clients()` (`backend/routes/pipeline.py`)
-5. Ajouter des tests sous `tests/test_services/`
+1. Créez `backend/services/job_apis/votre_source.py` avec `async def search(...)`
+2. Si clé API requise : déclarez dans `config.py`, `.env.example`, et ce README (EN et FR)
+3. Étendez le Literal `source` dans `backend/models/job.py`
+4. Branchez le client dans `_build_api_clients()` de `backend/routes/pipeline.py`
+5. Ajoutez un filtre géographique si l'API renvoie des résultats mondiaux
+6. Ajoutez des tests sous `tests/test_services/`
 
 ### Ajouter un prompt
 
-1. Constante dans `backend/prompts.py` (commentaire de recherche si utile)
-2. Syntaxe `{placeholder}` - jamais de f-string dans la constante
-3. Tests anti-hallucination si le prompt est critique pour la sécurité du contenu
+1. Constante dans `backend/prompts.py` (commentaire de recherche si pertinent)
+2. Syntaxe `{placeholder}` : jamais de f-string dans la constante
+3. Si le prompt a besoin de `{language}`, ajoutez-le
+4. Tests anti-hallucination si le prompt est critique pour la sécurité du contenu
 
 ### Licence
 

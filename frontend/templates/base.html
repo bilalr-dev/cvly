@@ -7,9 +7,9 @@
     <script src="https://unpkg.com/htmx.org@2.0.4"
             integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+"
             crossorigin="anonymous"></script>
-    {# No integrity/crossorigin: cdn.tailwindcss.com does not send CORS headers,
-       so SRI + crossorigin="anonymous" blocks the script in the browser. #}
-    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    {# Served locally: cdn.tailwindcss.com omits Access-Control-Allow-Origin,
+       so any SRI/crossorigin (or some browser modes) block the remote script. #}
+    <script src="/static/tailwindcss-3.4.17.js"></script>
     <script>
         tailwind.config = {
             theme: {
