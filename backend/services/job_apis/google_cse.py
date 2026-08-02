@@ -9,6 +9,7 @@ import aiohttp
 from backend.models.job import RawJobPosting
 from backend.models.preferences import SearchPreferences
 from backend.utils.dedup import generate_posting_id
+from backend.utils.text import unescape_html
 
 from .base import BaseJobAPIClient
 
@@ -23,7 +24,7 @@ class GoogleCSEClient(BaseJobAPIClient):
         self.cse_id: str = cse_id
 
     def _map_response(self, item: dict[str, Any]) -> RawJobPosting:
-        title = item.get("title", "")
+        title = unescape_html(item.get("title", ""))
         company = ""
         location = ""
         id_str = generate_posting_id(title, company, location)

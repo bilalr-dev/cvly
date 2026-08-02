@@ -20,15 +20,16 @@ from backend.utils.constants import (
 )
 from backend.utils.dedup import generate_posting_id
 from backend.utils.location_filter import filter_by_location
+from backend.utils.text import unescape_html
 
 logger = logging.getLogger(__name__)
 
 
 def _parse_arbeitnow_item(item: dict[str, Any]) -> RawJobPosting | None:
     try:
-        title = item.get("title", "")
-        company = item.get("company_name", "")
-        loc = item.get("location", "")
+        title = unescape_html(item.get("title", ""))
+        company = unescape_html(item.get("company_name", ""))
+        loc = unescape_html(item.get("location", ""))
         if loc:
             location = loc
         elif item.get("remote", False):
@@ -41,7 +42,7 @@ def _parse_arbeitnow_item(item: dict[str, Any]) -> RawJobPosting | None:
             company=company,
             location=location,
             url=item.get("url", ""),
-            description_text=item.get("description", ""),
+            description_text=unescape_html(item.get("description", "")),
             source="arbeitnow",
             date_posted=item.get("created_at"),
         )
@@ -58,6 +59,11 @@ class ArbeitnowClient:
 
     async def search(self, preferences: Any) -> list[RawJobPosting]:
         """Search Arbeitnow for jobs matching preferences."""
+        # Remote-first board: skip when the user wants on-site only
+        if not getattr(preferences, "remote_ok", False):
+            logger.debug("Skipping Arbeitnow: remote_ok is false")
+            return []
+
         titles = getattr(preferences, "titles", None) or []
         if not titles:
             return []

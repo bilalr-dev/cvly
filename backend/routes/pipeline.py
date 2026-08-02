@@ -38,6 +38,8 @@ from backend.utils.constants import (
     DEFAULT_MAX_RESULTS_PER_SOURCE,
     DESCRIPTION_CONTRACT_SIGNALS,
     EDUCATION_TO_EQF_LEVEL,
+    EN_FR_TITLE_VARIANTS,
+    MIN_DESCRIPTION_LENGTH,
     PIPELINE_RATE_LIMIT_CALLS,
     PIPELINE_RATE_LIMIT_PERIOD_SECONDS,
     PIPELINE_TOTAL_STEPS,
@@ -317,6 +319,24 @@ def _detect_contract_from_description(description: str) -> str | None:
     return None
 
 
+def _resolve_effective_contract_type(posting) -> str | None:
+    """Resolve contract type; niche title signals override broad API labels.
+
+    France Travail often tags stages as CDI/CDD. A title like "STAGE - …"
+    must win over that mislabel so niche-only filters stay accurate.
+    """
+    title_lower = posting.title.lower()
+    title_type = _detect_contract_from_title(title_lower)
+    if title_type and title_type not in BROAD_CONTRACT_TYPES:
+        return title_type
+
+    return (
+        _contract_type_from_string((posting.contract_type or "").lower())
+        or title_type
+        or _detect_contract_from_description(posting.description_text or "")
+    )
+
+
 def _filter_by_contract(postings: list, selected_contracts: list) -> list:
     if not selected_contracts:
         return postings
@@ -326,13 +346,7 @@ def _filter_by_contract(postings: list, selected_contracts: list) -> list:
 
     filtered = []
     for p in postings:
-        title_lower = p.title.lower()
-        contract_str = (p.contract_type or "").lower()
-        effective_type = (
-            _contract_type_from_string(contract_str)
-            or _detect_contract_from_title(title_lower)
-            or _detect_contract_from_description(p.description_text or "")
-        )
+        effective_type = _resolve_effective_contract_type(p)
 
         if effective_type:
             if effective_type in selected_normalized:
@@ -351,6 +365,26 @@ def _filter_by_contract(postings: list, selected_contracts: list) -> list:
     return filtered
 
 
+def _title_relevance_keywords(search_titles: list[str]) -> set[str]:
+    """Build title-token keywords, including known EN→FR title variants."""
+    relevance_keywords: set[str] = set()
+    search_titles_lower = [t.lower() for t in search_titles]
+
+    for title in search_titles_lower:
+        # Split on spaces and hyphens so "full-stack" matches title tokens
+        # "full" / "stack" after title_lower.replace("-", " ")
+        relevance_keywords.update(title.replace("-", " ").split())
+        relevance_keywords.add(title.replace(" ", "-"))
+        relevance_keywords.add(title)
+
+        french = EN_FR_TITLE_VARIANTS.get(title.strip())
+        if french:
+            relevance_keywords.update(french.replace("-", " ").split())
+            relevance_keywords.add(french)
+
+    return relevance_keywords - TITLE_RELEVANCE_STOPWORDS
+
+
 def _filter_by_title_relevance(postings: list, search_titles: list[str]) -> list:
     """Pre-filter by title relevance to reduce JD parsing API calls."""
     if not postings:
@@ -359,15 +393,7 @@ def _filter_by_title_relevance(postings: list, search_titles: list[str]) -> list
         return postings
 
     search_titles_lower = [t.lower() for t in search_titles]
-    relevance_keywords = set()
-    for title in search_titles_lower:
-        # Split on spaces and hyphens so "full-stack" matches title tokens
-        # "full" / "stack" after title_lower.replace("-", " ")
-        relevance_keywords.update(title.replace("-", " ").split())
-        relevance_keywords.add(title.replace(" ", "-"))
-        relevance_keywords.add(title)
-
-    relevance_keywords -= TITLE_RELEVANCE_STOPWORDS
+    relevance_keywords = _title_relevance_keywords(search_titles)
 
     pre_filter_before = len(postings)
     relevant_postings = []
@@ -415,6 +441,13 @@ def _filter_postings(
     postings = _reclassify_contracts(postings)
     postings = _filter_by_contract(postings, prefs_data.get("contract") or [])
     postings = _filter_by_title_relevance(postings, for_titles)
+
+    before = len(postings)
+    postings = [
+        p for p in postings
+        if len((p.description_text or "").strip()) >= MIN_DESCRIPTION_LENGTH
+    ]
+    logger.debug("Description filter: %d -> %d", before, len(postings))
 
     if len(postings) > max_parse:
         logger.info("Capping at %d postings for JD parsing", max_parse)

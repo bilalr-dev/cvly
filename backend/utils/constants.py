@@ -57,8 +57,26 @@ MIN_CORRECTED_COVER_LENGTH: int = 100
 # Hallucination / JD parsing thresholds
 SHORT_TECH_NAME_MAX_LEN: int = 2
 JD_MIN_DESCRIPTION_CHARS: int = 100
+MIN_DESCRIPTION_LENGTH: int = 50
 SENIOR_YEARS_ONE_PAGE_THRESHOLD: int = 10
 FRENCH_DETECTION_MIN_HITS: int = 2
+
+# Contracts that France Travail / Adzuna / JSearch cannot filter via API codes —
+# append these keywords to the search query instead (stage ≠ alternance).
+KEYWORD_BOOSTED_CONTRACTS: dict[str, list[str]] = {
+    "stage": ["stage", "stagiaire"],
+    "internship": ["stage", "stagiaire"],
+}
+
+# English title → French phrase for a second France Travail motsCles query (AND-safe).
+EN_FR_TITLE_VARIANTS: dict[str, str] = {
+    "project manager": "chef de projet",
+    "software engineer": "ingenieur logiciel",
+    "developer": "developpeur",
+    "data analyst": "analyste donnees",
+    "product manager": "chef de produit",
+    "business analyst": "analyste metier",
+}
 
 # Job API client defaults
 JOB_API_TIMEOUT_SECONDS: int = 15
@@ -88,6 +106,8 @@ FRANCE_TRAVAIL_SEARCH_URL: str = (
 )
 FRANCE_TRAVAIL_RATE_LIMIT_CALLS: int = 9
 FRANCE_TRAVAIL_RATE_LIMIT_PERIOD_SECONDS: float = 1.0
+# Pagination: API default is small; max per request is 150 (0-149).
+FRANCE_TRAVAIL_RANGE: str = "0-149"
 
 # La Bonne Alternance (free API key: https://api.apprentissage.beta.gouv.fr)
 LBA_BASE_URL: str = "https://api.apprentissage.beta.gouv.fr/api/job/v1/search"
@@ -269,7 +289,11 @@ TITLE_RELEVANCE_STOPWORDS: frozenset[str] = frozenset({
 
 # Sources that already filter by relevance at the API level (ROME codes, etc.).
 # Title relevance filter is skipped for these.
-API_PREFILTERED_SOURCES: frozenset[str] = frozenset({"la_bonne_alternance"})
+# Sources whose API already filters by occupation codes tightly enough that
+# title relevance can be skipped. LBA ROME codes are broad families, so LBA
+# is NOT included — irrelevant titles like "Chargé de Partenariats" must still
+# go through the title filter.
+API_PREFILTERED_SOURCES: frozenset[str] = frozenset()
 
 
 SENIORITY_KEYWORDS = {

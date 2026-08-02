@@ -18,6 +18,7 @@ from backend.utils.constants import (
     JOB_DESC_EXTRACT_MIN_CHARS,
 )
 from backend.utils.dedup import generate_posting_id, is_truncated
+from backend.utils.text import unescape_html
 
 from .base import BaseJobAPIClient
 
@@ -31,9 +32,9 @@ class AdzunaClient(BaseJobAPIClient):
         self.app_key: str = app_key
 
     def _map_response(self, item: dict[str, Any]) -> RawJobPosting:
-        title = item.get("title", "")
-        company = item.get("company", {}).get("display_name", "")
-        location = item.get("location", {}).get("display_name", "")
+        title = unescape_html(item.get("title", ""))
+        company = unescape_html(item.get("company", {}).get("display_name", ""))
+        location = unescape_html(item.get("location", {}).get("display_name", ""))
         id_str = generate_posting_id(title, company, location)
 
         return RawJobPosting(
@@ -42,9 +43,26 @@ class AdzunaClient(BaseJobAPIClient):
             company=company,
             location=location,
             url=item.get("redirect_url", ""),
-            description_text=item.get("description", ""),
-            source="adzuna"
+            description_text=unescape_html(item.get("description", "")),
+            source="adzuna",
         )
+
+    def _build_search_params(self, preferences: SearchPreferences) -> dict[str, str]:
+        """Map preferences to Adzuna query params (what / where / distance km)."""
+        params: dict[str, str] = {
+            "app_id": self.app_id,
+            "app_key": self.app_key,
+            "results_per_page": ADZUNA_RESULTS_PER_PAGE,
+            "what": " ".join(preferences.titles),
+        }
+        if getattr(preferences, "location", None):
+            # City only — country suffix confuses Adzuna's where geocoder
+            city = preferences.location.split(",")[0].strip()
+            params["where"] = city
+            radius = int(getattr(preferences, "radius_km", 0) or 0)
+            if radius > 0:
+                params["distance"] = str(radius)
+        return params
 
     async def search(self, preferences: SearchPreferences) -> list[RawJobPosting]:
         if not getattr(preferences, "titles", None):
@@ -52,16 +70,7 @@ class AdzunaClient(BaseJobAPIClient):
 
         try:
             async with aiohttp.ClientSession() as session:
-                params = {
-                    "app_id": self.app_id,
-                    "app_key": self.app_key,
-                    "results_per_page": ADZUNA_RESULTS_PER_PAGE,
-                }
-
-                params["what"] = " ".join(preferences.titles)
-                if getattr(preferences, "location", None):
-                    params["where"] = preferences.location
-
+                params = self._build_search_params(preferences)
                 logger.debug("Adzuna search params: %s", params)
 
                 async with session.get(ADZUNA_SEARCH_URL, params=params) as response:
@@ -100,6 +109,7 @@ class AdzunaClient(BaseJobAPIClient):
             clean = re.sub(r"<style[^>]*>.*?</style>", "", clean, flags=re.DOTALL)
             clean = re.sub(r"<[^>]+>", " ", clean)
             clean = re.sub(r"\s+", " ", clean).strip()
+            clean = unescape_html(clean)
             return clean[:JOB_DESC_EXTRACT_MAX_CHARS] if len(clean) > JOB_DESC_EXTRACT_MIN_CHARS else None
         except (aiohttp.ClientError, OSError):
             return None

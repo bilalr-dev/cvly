@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Literal, get_args
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 from backend.utils.constants import SUPPORTED_CONTRACT_TYPES, SUPPORTED_LANGUAGES
 
@@ -42,19 +42,32 @@ class ParsedJobDescription(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     contract_type: str | None = None
-    education_requirement: str | None = None
+    education_requirement: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("education_requirement", "required_education"),
+    )
     min_years_experience: int | None = None
 
     ats_keywords: list[str] = Field(default_factory=list)
-    company: str = ""
+    # Accept legacy prompt keys (company_name / job_title) so Gemini output is not dropped
+    company: str = Field(
+        default="",
+        validation_alias=AliasChoices("company", "company_name"),
+    )
     job_id: str = ""
     key_responsibilities: list[str] = Field(default_factory=list)
     language_of_posting: SupportedLanguage = "fr"
     preferred_skills: list[str] = Field(default_factory=list)
     required_certifications: list[str] = Field(default_factory=list)
-    required_skills: list[str] = Field(default_factory=list)
+    required_skills: list[str] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("required_skills", "skills"),
+    )
     required_tools: list[str] = Field(default_factory=list)
-    title: str = ""
+    title: str = Field(
+        default="",
+        validation_alias=AliasChoices("title", "job_title"),
+    )
 
     @field_validator("job_id", "title", "company", mode="before")
     @classmethod
