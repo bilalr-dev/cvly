@@ -25,19 +25,35 @@ from backend.utils.constants import (
     LBA_SOURCES,
 )
 from backend.utils.dedup import generate_posting_id
+from backend.utils.text import unescape_html
 
 logger = logging.getLogger(__name__)
 
 
 def _wants_niche_contracts(preferences: SearchPreferences) -> bool:
-    contracts = list(getattr(preferences, "contracts", None) or [])
-    if not contracts:
-        return False
-    contract_lower = {str(c).lower() for c in contracts}
-    return any(
-        "alternance" in c or "apprentissage" in c or "stage" in c
-        for c in contract_lower
+    is_alternance, is_stage = _niche_contract_flags(preferences)
+    return is_alternance or is_stage
+
+
+def _niche_contract_flags(preferences: SearchPreferences) -> tuple[bool, bool]:
+    """Return (is_alternance, is_stage). Stage and alternance stay separate."""
+    contracts_lower = {
+        str(c).lower() for c in (getattr(preferences, "contracts", None) or [])
+    }
+    is_alternance = any(
+        "alternance" in c or "apprentissage" in c for c in contracts_lower
     )
+    is_stage = any("stage" in c or "internship" in c for c in contracts_lower)
+    return is_alternance, is_stage
+
+
+def _result_contract_type(is_alternance: bool, is_stage: bool) -> str:
+    """Preference-driven contract label for LBA results (stage ≠ alternance)."""
+    if is_alternance:
+        return "alternance_apprentissage"
+    if is_stage:
+        return "stage"
+    return "alternance_apprentissage"
 
 
 def _search_radius_km(preferences: SearchPreferences) -> int:
@@ -88,6 +104,7 @@ def _parse_lba_item(
     item: dict[str, Any],
     fallback_city: str,
     preferences: SearchPreferences,
+    result_contract_type: str,
 ) -> RawJobPosting | None:
     try:
         offer = item.get("offer") or {}
@@ -95,12 +112,20 @@ def _parse_lba_item(
         apply_info = item.get("apply") or {}
         location_info = workplace.get("location") or {}
 
-        title = offer.get("title") or ""
-        company = workplace.get("brand") or workplace.get("name") or ""
-        location = location_info.get("address") or fallback_city
+        title = unescape_html(offer.get("title") or "")
+        company = unescape_html(workplace.get("brand") or workplace.get("name") or "")
+        location = unescape_html(location_info.get("address") or fallback_city)
         url = apply_info.get("url") or ""
-        description = offer.get("description") or ""
+        description = unescape_html(offer.get("description") or "")
         posting_id = generate_posting_id(title, company, location)
+
+        # Prefer API label when searching alternance (keeps professionnalisation etc.);
+        # for stage-only searches force "stage" so results survive the contract filter.
+        api_type = _contract_type_from_api_label(_joined_api_types(item))
+        if result_contract_type == "stage":
+            contract_type = "stage"
+        else:
+            contract_type = api_type or _contract_type_for_item(item, preferences)
 
         return RawJobPosting(
             id=posting_id,
@@ -110,7 +135,7 @@ def _parse_lba_item(
             url=url,
             description_text=description,
             source="la_bonne_alternance",
-            contract_type=_contract_type_for_item(item, preferences),
+            contract_type=contract_type,
         )
     except (KeyError, TypeError, ValueError) as e:
         logger.debug("Skipping LBA item: %s", e)
@@ -193,6 +218,7 @@ class LaBonneAlternanceClient:
         fallback_city: str,
         limit: int,
         diploma_level: int | None,
+        result_contract_type: str,
     ) -> list[RawJobPosting]:
         """Parse raw API items into RawJobPosting objects up to the given limit."""
         results: list[RawJobPosting] = []
@@ -201,7 +227,9 @@ class LaBonneAlternanceClient:
                 continue
             if not _item_matches_diploma(item, diploma_level):
                 continue
-            posting = _parse_lba_item(item, fallback_city, preferences)
+            posting = _parse_lba_item(
+                item, fallback_city, preferences, result_contract_type,
+            )
             if posting is not None:
                 results.append(posting)
             if len(results) >= limit:
@@ -210,7 +238,8 @@ class LaBonneAlternanceClient:
 
     async def search(self, preferences: SearchPreferences) -> list[RawJobPosting]:
         """Search La Bonne Alternance using the user's location, radius, and titles."""
-        if not _wants_niche_contracts(preferences):
+        is_alternance, is_stage = _niche_contract_flags(preferences)
+        if not is_alternance and not is_stage:
             return []
         if not getattr(preferences, "titles", None):
             return []
@@ -228,7 +257,20 @@ class LaBonneAlternanceClient:
         fallback_city = city.title() if city else ""
         limit = int(getattr(preferences, "max_results_per_source", 0) or 20)
         diploma_level = getattr(preferences, "diploma_level", None)
+        result_contract_type = _result_contract_type(is_alternance, is_stage)
 
-        results = self._collect_postings(data, preferences, fallback_city, limit, diploma_level)
-        logger.debug("LBA returned %d alternance jobs (limit=%d)", len(results), limit)
+        results = self._collect_postings(
+            data,
+            preferences,
+            fallback_city,
+            limit,
+            diploma_level,
+            result_contract_type,
+        )
+        logger.debug(
+            "LBA returned %d jobs (limit=%d, contract_type=%s)",
+            len(results),
+            limit,
+            result_contract_type,
+        )
         return results

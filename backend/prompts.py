@@ -115,7 +115,11 @@ JD_PARSE_PROMPT: str = """You are a job description analyst specializing in ATS 
 TASK: Extract all structured information from the following job posting into the exact JSON schema provided below.
 
 EXTRACTION RULES:
-- Normalize skill names in the "skills" list to their canonical English form (e.g., "React.js" → "React", "Gestion de projet" → "Project Management").
+- company: ALWAYS extract the employer / hiring organization when it appears anywhere in the text
+  (e.g. "chez NovaTech", "Rejoindre GreenPeak", "L'entreprise Atlas Soft", brand intros). Prefer the legal
+  or brand name (e.g. "NovaTech Industries", "Atlas Soft"). Use "" only if no employer is mentioned at all.
+- title: extract the job title from the posting when present.
+- Normalize skill names in "required_skills" to their canonical English form (e.g., "React.js" → "React", "Gestion de projet" → "Project Management").
 - Keep "ats_keywords" in the ORIGINAL language of the posting - these are used for exact ATS matching.
 - "ats_keywords" MUST be a single flat array of strings. Do NOT nest objects or dictionaries inside it.
 - For min_years_experience: extract only if explicitly stated. Set to 0 if "junior", "intern", or "débutant accepté". If "senior" or "5+ ans", extract the integer.
@@ -124,16 +128,18 @@ EXTRACTION RULES:
 
 TARGET JSON SCHEMA:
 {{
-  "job_title": string | null,
-  "company_name": string | null,
-  "location": string | null,
+  "title": string | null,
+  "company": string | null,
   "language_of_posting": "fr" | "en",
   "min_years_experience": integer | null,
-  "summary": string | null,
   "key_responsibilities": [string],
-  "skills": [string],
+  "required_skills": [string],
+  "preferred_skills": [string],
+  "required_tools": [string],
+  "required_certifications": [string],
   "ats_keywords": [string],
-  "required_education": string | null
+  "education_requirement": string | null,
+  "contract_type": string | null
 }}
 
 Job posting text:
@@ -593,7 +599,7 @@ You are translating professional CV/resume content for the {target_language} job
 ## DO NOT TRANSLATE (preserve exactly as-is)
 - Technical tool names: React, Docker, AWS, PostgreSQL, NestJS, Git, CI/CD, Kubernetes, Python, TypeScript, Node.js, etc.
 - Company names, proper nouns, brand names
-- Institution names and école names (e.g., "École Polytechnique", "HEC Paris", "ENSAE" - keep original)
+- Institution names and école names (e.g., "École Imaginaire", "Institut Hexa", "Campus Nord" - keep original)
 - URLs, email addresses, phone numbers, dates
 - CEFR language levels (A1-C2, Native)
 

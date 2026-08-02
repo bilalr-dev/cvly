@@ -21,6 +21,7 @@ from backend.utils.constants import (
 )
 from backend.utils.dedup import generate_posting_id
 from backend.utils.location_filter import filter_by_location
+from backend.utils.text import unescape_html
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,11 @@ class RemotiveClient:
 
     async def search(self, preferences: Any) -> list[RawJobPosting]:
         """Search Remotive for remote jobs matching preferences."""
+        # Remotive has no city/radius — skip when the user wants on-site only
+        if not getattr(preferences, "remote_ok", False):
+            logger.debug("Skipping Remotive: remote_ok is false")
+            return []
+
         titles = getattr(preferences, "titles", None) or []
         if not titles:
             return []
@@ -63,11 +69,11 @@ class RemotiveClient:
         results: list[RawJobPosting] = []
         for item in data.get("jobs", []):
             try:
-                title = item.get("title", "")
-                company = item.get("company_name", "")
-                loc = item.get("candidate_required_location", "")
+                title = unescape_html(item.get("title", ""))
+                company = unescape_html(item.get("company_name", ""))
+                loc = unescape_html(item.get("candidate_required_location", ""))
                 url = item.get("url", "")
-                description = item.get("description", "")
+                description = unescape_html(item.get("description", ""))
 
                 posting_id = generate_posting_id(title, company, loc)
 

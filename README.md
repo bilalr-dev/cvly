@@ -303,15 +303,16 @@ If you really want to edit files yourself: copy `.env.example` to `.env` and fil
 
 ### Production release (recommended for most users)
 
-Use a **tagged release**, not a random commit. Latest stable tag: **`v1.0.6`**.
+Use a **tagged release**, not a random commit. Latest stable tag: **`v1.0.7`**.
 
 All tags and release notes: [github.com/bilalr-dev/cvly/releases](https://github.com/bilalr-dev/cvly/releases)  
 All tags list: [github.com/bilalr-dev/cvly/tags](https://github.com/bilalr-dev/cvly/tags)
 
 | Tag | What it is |
 |---|---|
-| `v1.0.6` | interactive setup wizard |
-| `v1.0.5` | ROMEO v2 docs, fork contributor guide, CDN CORS fix (view page) - **use this** |
+| `v1.0.7` | Stage / internship API fixes, company name extraction from JD |
+| `v1.0.6` | Interactive setup wizard |
+| `v1.0.5` | ROMEO v2 docs, fork contributor guide, CDN CORS fix (view page) |
 | `v1.0.4` | Auto-install Python 3.12 in start scripts |
 | `v1.0.3` | README Markdown / anchor / badge fixes |
 | `v1.0.2` | Docs + run guide with tags |
@@ -324,7 +325,7 @@ All tags list: [github.com/bilalr-dev/cvly/tags](https://github.com/bilalr-dev/c
 git clone https://github.com/bilalr-dev/cvly.git
 cd cvly
 git fetch --tags
-git checkout v1.0.6
+git checkout v1.0.7
 ./start.sh        # macOS / Linux - launches setup wizard if .env is missing
 # or: start.bat   # Windows
 ```
@@ -336,7 +337,7 @@ No `cp .env.example .env` step. Follow the wizard, then the server starts.
 ```bash
 cd cvly
 git fetch --tags
-git checkout v1.0.6
+git checkout v1.0.7
 ./start.sh        # macOS / Linux
 # or: start.bat   # Windows
 ```
@@ -818,15 +819,16 @@ Si vous tenez vraiment à éditer les fichiers vous-même : copiez `.env.example
 
 ### Version production (recommandée pour la plupart des utilisateurs)
 
-Utilisez un **tag de release**, pas un commit au hasard. Dernier tag stable : **`v1.0.6`**.
+Utilisez un **tag de release**, pas un commit au hasard. Dernier tag stable : **`v1.0.7`**.
 
 Toutes les releases : [github.com/bilalr-dev/cvly/releases](https://github.com/bilalr-dev/cvly/releases)  
 Liste des tags : [github.com/bilalr-dev/cvly/tags](https://github.com/bilalr-dev/cvly/tags)
 
 | Tag | Contenu |
 |---|---|
-| `v1.0.6` | interactive setup wizard |
-| `v1.0.5` | Docs ROMEO v2, guide contributeur fork, fix CORS CDN (page view) - **à utiliser** |
+| `v1.0.7` | Correctifs API stage / internship, extraction du nom d'entreprise depuis la JD |
+| `v1.0.6` | Assistant de configuration interactif |
+| `v1.0.5` | Docs ROMEO v2, guide contributeur fork, fix CORS CDN (page view) |
 | `v1.0.4` | Auto-install Python 3.12 dans les scripts de démarrage |
 | `v1.0.3` | Correctifs Markdown / ancres / badges du README |
 | `v1.0.2` | Docs + guide de lancement avec tags |
@@ -839,7 +841,7 @@ Liste des tags : [github.com/bilalr-dev/cvly/tags](https://github.com/bilalr-dev
 git clone https://github.com/bilalr-dev/cvly.git
 cd cvly
 git fetch --tags
-git checkout v1.0.6
+git checkout v1.0.7
 ./start.sh        # macOS / Linux - lance l'assistant si .env est absent
 # ou : start.bat  # Windows
 ```
@@ -851,7 +853,7 @@ Pas d’étape `cp .env.example .env`. Suivez l’assistant, puis le serveur dé
 ```bash
 cd cvly
 git fetch --tags
-git checkout v1.0.6
+git checkout v1.0.7
 ./start.sh        # macOS / Linux
 # ou : start.bat  # Windows
 ```

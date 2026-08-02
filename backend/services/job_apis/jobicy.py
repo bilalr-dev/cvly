@@ -24,6 +24,7 @@ from backend.utils.constants import (
 )
 from backend.utils.dedup import generate_posting_id
 from backend.utils.location_filter import filter_by_location
+from backend.utils.text import unescape_html
 
 logger = logging.getLogger(__name__)
 
@@ -42,9 +43,9 @@ def _build_search_params(preferences: Any) -> dict[str, str] | None:
 
 def _parse_jobicy_item(item: dict[str, Any]) -> RawJobPosting | None:
     try:
-        title = item.get("jobTitle", "")
-        company = item.get("companyName", "")
-        loc = item.get("jobGeo", "")
+        title = unescape_html(item.get("jobTitle", ""))
+        company = unescape_html(item.get("companyName", ""))
+        loc = unescape_html(item.get("jobGeo", ""))
 
         # Prefer the web job page; some feed URLs omit /jobs/ and serve raw content
         url = item.get("url", "") or ""
@@ -59,7 +60,7 @@ def _parse_jobicy_item(item: dict[str, Any]) -> RawJobPosting | None:
             company=company,
             location=loc or "Remote",
             url=url,
-            description_text=item.get("jobDescription", ""),
+            description_text=unescape_html(item.get("jobDescription", "")),
             source="jobicy",
             date_posted=item.get("pubDate"),
         )
@@ -76,6 +77,11 @@ class JobicyClient:
 
     async def search(self, preferences: Any) -> list[RawJobPosting]:
         """Search Jobicy for remote jobs matching preferences."""
+        # Jobicy has no city/radius — skip when the user wants on-site only
+        if not getattr(preferences, "remote_ok", False):
+            logger.debug("Skipping Jobicy: remote_ok is false")
+            return []
+
         params = _build_search_params(preferences)
         if params is None:
             return []

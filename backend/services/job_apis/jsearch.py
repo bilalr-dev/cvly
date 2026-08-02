@@ -11,6 +11,7 @@ from backend.models.job import RawJobPosting
 from backend.models.preferences import SearchPreferences
 from backend.utils.constants import JSEARCH_DEFAULT_PARAMS
 from backend.utils.dedup import generate_posting_id
+from backend.utils.text import unescape_html
 
 from .base import BaseJobAPIClient
 
@@ -18,16 +19,22 @@ logger = logging.getLogger(__name__)
 
 _SEARCH_URL = "https://jsearch.p.rapidapi.com/search-v2"
 
+
 class JSearchClient(BaseJobAPIClient):
 
     def __init__(self, api_key: str) -> None:
         self.api_key: str = api_key
 
     def _map_response(self, item: dict[str, Any]) -> RawJobPosting:
-        title = item.get("job_title") or ""
-        company = item.get("employer_name") or ""
-        location = item.get("job_city") or ""
+        title = unescape_html(item.get("job_title") or "")
+        company = unescape_html(item.get("employer_name") or "")
+        location = unescape_html(item.get("job_city") or "")
         id_str = generate_posting_id(title, company, location)
+        description = unescape_html(
+            item.get("job_description")
+            or item.get("job_description_snippet")
+            or ""
+        )
 
         return RawJobPosting(
             id=id_str,
@@ -36,7 +43,7 @@ class JSearchClient(BaseJobAPIClient):
             location=location,
             url=item.get("job_apply_link") or "",
             source="jsearch",
-            description_text=""
+            description_text=description,
         )
 
     async def search(self, preferences: SearchPreferences) -> list[RawJobPosting]:
@@ -48,6 +55,7 @@ class JSearchClient(BaseJobAPIClient):
             async with aiohttp.ClientSession() as session:
                 headers = {"X-RapidAPI-Key": self.api_key}
 
+                # Docs: put title + location in the free-form query string
                 query_parts = [" ".join(titles)]
                 if getattr(preferences, "location", None):
                     loc = preferences.location.split(",")[0].strip()
@@ -57,7 +65,9 @@ class JSearchClient(BaseJobAPIClient):
                     **JSEARCH_DEFAULT_PARAMS,
                     "query": " ".join(query_parts),
                 }
-                country = (getattr(preferences, "country", None) or get_settings().default_country).lower()
+                country = (
+                    getattr(preferences, "country", None) or get_settings().default_country
+                ).lower()
                 params["country"] = country
                 logger.debug("JSearch params: %s", params)
 
